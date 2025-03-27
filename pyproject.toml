@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "evotales"
+version = "0.1.0"
+description = "Simulation game for stories based learning with RL and Transformes architecture"
+authors = ["happyHooman <tornea.alexandru@gmail.com>"]
+license = "GPL"
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.12"
+arcade = "^3.0.2"
+numpy = "^2.2.4"
+pygame = "^2.6.1"
+pettingzoo = "^1.24.3"
