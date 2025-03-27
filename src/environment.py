@@ -16,6 +16,9 @@ class GameView(arcade.View):
             viewport=self.window.rect
         )
         self._center_camera()
+        # Add mouse tracking variables
+        self.mouse_pressed = False
+        self.last_mouse_position = (0, 0)
 
     def _get_center_position(self, width=None, height=None):
         width = width if width else self.window.width
@@ -79,20 +82,44 @@ class GameView(arcade.View):
             self.camera.position[1] + (old_center[1] - new_center[1])
         )
 
+    def on_mouse_press(self, x: int, y: int, button: int, modifiers: int):
+        if button == arcade.MOUSE_BUTTON_LEFT:
+            self.mouse_pressed = True
+            self.last_mouse_position = (x, y)
+
+    def on_mouse_release(self, x: int, y: int, button: int, modifiers: int):
+        if button == arcade.MOUSE_BUTTON_LEFT:
+            self.mouse_pressed = False
+
+    def on_mouse_drag(self, x: int, y: int, dx: int, dy: int, buttons: int, modifiers: int):
+            # Calculate the movement in world coordinates
+            world_dx = dx / self.camera.zoom
+            world_dy = dy / self.camera.zoom
+            
+            # Update camera position
+            self.camera.position = (
+                self.camera.position[0] - world_dx,
+                self.camera.position[1] - world_dy
+            )
+            
+            self.last_mouse_position = (x, y)
+
+    def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
+        if scroll_y > 0:
+            self.camera_operation(CAMERA_OPS["ZOOM_IN"])
+        elif scroll_y < 0:
+            self.camera_operation(CAMERA_OPS["ZOOM_OUT"])
+
     def on_key_press(self, key, modifiers):
         pan_rate = CAMERA_OPS["PAN_RATE"]
         match key:
             case arcade.key.LEFT:
-                print("LEFT", self.camera.position)
                 self.camera.position = (self.camera.position[0] - pan_rate, self.camera.position[1])
             case arcade.key.RIGHT:
-                print("RIGHT", self.camera.position)
                 self.camera.position = (self.camera.position[0] + pan_rate, self.camera.position[1])
             case arcade.key.UP:
-                print("UP", self.camera.position)
                 self.camera.position = (self.camera.position[0], self.camera.position[1] + pan_rate)
             case arcade.key.DOWN:
-                print("DOWN", self.camera.position)
                 self.camera.position = (self.camera.position[0], self.camera.position[1] - pan_rate)
             case arcade.key.X:
                 self.camera_operation(CAMERA_OPS["ZOOM_IN"])
