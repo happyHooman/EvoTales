@@ -11,7 +11,7 @@ CAMERA_OPS = {
     "ZOOM_IN": "zoom_in",
     "ZOOM_OUT": "zoom_out",
     "ZOOM_FACTOR": 1.2,
-    "PAN_RATE": 50
+    "PAN_RATE": 15
 }
 
 # Walking creature configuration
