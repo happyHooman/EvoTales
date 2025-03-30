@@ -37,19 +37,35 @@ class EvoTalesWorld(arcade.Window):
         # Set the background color
         self.background_color = arcade.color.AMAZON
 
+        self.tile_map = None
+
     def setup(self):
         """Set up the game here. Call this function to restart the game."""
+
+        # Load the tile map
+        layer_options = {
+            "ground": {
+                "use_spatial_hash": True
+            }
+        }
+
+        # Load our TileMap
+        self.tile_map = arcade.load_tilemap(
+            "assets/maps/uniform_map.json",
+            scaling=1.0,  # Adjust this value based on your tile size
+            layer_options=layer_options
+        )
+
+        # Create our Scene Based on the TileMap
+        self.scene = arcade.Scene.from_tilemap(self.tile_map)
+        
         # Initialize our camera, setting a viewport the size of our window
         self.camera = arcade.Camera2D()
+        self.camera.viewport = self.rect
+        self.camera.projection = LRBT(0, self.width, 0, self.height)
 
         # Initialize our gui camera, initial settings are the same as our world camera
         self.gui_camera = arcade.Camera2D()
-
-        # Set the camera's viewport to match the window
-        self.camera.viewport = self.rect
-
-        # Set the camera's projection to match the window dimensions
-        self.camera.projection = LRBT(0, self.width, 0, self.height)
 
         # Initialize camera position
         self._center_camera()
@@ -103,11 +119,12 @@ class EvoTalesWorld(arcade.Window):
         self.camera.use()
 
         # Draw our game world
-        arcade.draw_rect_outline(
-            LRBT(0, 400, 0, 300),
-            color=arcade.color.WHITE,
-            border_width=5,
-        )
+        self.scene.draw()
+        # arcade.draw_rect_outline(
+        #     LRBT(0, 400, 0, 300),
+        #     color=arcade.color.WHITE,
+        #     border_width=5,
+        # )
 
         # Activate our GUI camera
         self.gui_camera.use()
