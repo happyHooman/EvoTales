@@ -12,7 +12,7 @@ CAMERA_SETTINGS = {
     "ZOOM_IN": "zoom_in",
     "ZOOM_OUT": "zoom_out",
     "ZOOM_FACTOR": 1.2,
-    "PAN_RATE": 15,
+    "PAN_RATE": 300,
     "MIN_ZOOM": 0.1,
     "MAX_ZOOM": 4.0,
     "CLAMP_PADDING": 20.0,

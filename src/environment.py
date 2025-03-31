@@ -243,7 +243,7 @@ class EvoTalesWorld(arcade.Window):
         if dx or dy:
             new_x = self.camera.position[0] + dx
             new_y = self.camera.position[1] + dy
-            self.camera.position = self.clamp_camera_position(new_x, new_y)
+            self.clamp_camera_position(new_x, new_y)
 
     def on_close(self):
         # More graceful shutdown sequence
