@@ -5,6 +5,7 @@ import arcade
 from arcade.types import LRBT
 from config import *
 
+TILE_SCALING = 1.0
 
 class EvoTalesWorld(arcade.Window):
     """
@@ -38,6 +39,12 @@ class EvoTalesWorld(arcade.Window):
         self.background_color = arcade.color.AMAZON
 
         self.tile_map = None
+        self.map_bounds = None  # Will store (left, bottom, right, top)
+        self.padding = 20.0  # Pixels of padding allowed outside map bounds
+
+        # Camera zoom limits
+        self.max_zoom = CAMERA_SETTINGS["MAX_ZOOM"]  # Maximum zoom in (400% of original size)
+        self.min_zoom = CAMERA_SETTINGS["MIN_ZOOM"] # Default minimum zoom, will be calculated dynamically
 
     def setup(self):
         """Set up the game here. Call this function to restart the game."""
@@ -52,104 +59,135 @@ class EvoTalesWorld(arcade.Window):
         # Load our TileMap
         self.tile_map = arcade.load_tilemap(
             "assets/maps/uniform_map.json",
-            scaling=1.0,  # Adjust this value based on your tile size
+            scaling=TILE_SCALING,  # Adjust this value based on your tile size
             layer_options=layer_options
         )
 
-        # Create our Scene Based on the TileMap
+        # Calculate map bounds (world coordinates)
+        map_width = self.tile_map.width * self.tile_map.tile_width
+        map_height = self.tile_map.height * self.tile_map.tile_height
+        self.map_bounds = (0.0, 0.0, float(map_width), float(map_height)) # Use floats
+        self.padding = 20.0  # Pixels of padding allowed outside map bounds
+
         self.scene = arcade.Scene.from_tilemap(self.tile_map)
-        
-        # Initialize our camera, setting a viewport the size of our window
+        # Calculate initial minimum zoom based on map, padding and screen size
+        self.update_min_zoom()
         self.camera = arcade.Camera2D()
-        self.camera.viewport = self.rect
-        self.camera.projection = LRBT(0, self.width, 0, self.height)
-
-        # Initialize our gui camera, initial settings are the same as our world camera
         self.gui_camera = arcade.Camera2D()
+        self.center_camera_on_map()
 
-        # Initialize camera position
-        self._center_camera()
-
-    def _get_center_position(self, width=None, height=None):
-        width = width if width else self.width
-        height = height if height else self.height
-        center_x = self.camera.position[0] + width / 2
-        center_y = self.camera.position[1] + height / 2
-        return (center_x, center_y)
-    
-    def _get_center_from_projection(self):
-        width = self.camera.projection.right - self.camera.projection.left
-        height = self.camera.projection.top - self.camera.projection.bottom
-        return self._get_center_position(width, height)
-    
-    def _center_camera(self):
-        w = self.width
-        h = self.height
-        self.camera.position = (
-            -w / 2,  # Start at negative half width to center the view
-            -h / 2   # Start at negative half height to center the view
-        )
-
-    def on_resize(self, width: int, height: int):
-        # Only proceed if camera is initialized
-        if self.camera is None:
-            super().on_resize(width, height)
+    def update_min_zoom(self):
+        """Calculate minimum zoom to fit map + padding."""
+        if self.map_bounds is None:
+            self.min_zoom = CAMERA_SETTINGS["MIN_ZOOM"] # Fallback
             return
 
-        old_center = self._get_center_from_projection()
+        map_width = self.map_bounds[2] - self.map_bounds[0]
+        map_height = self.map_bounds[3] - self.map_bounds[1]
 
-        # Update the camera projection and viewport
-        self.camera.projection = LRBT(0, width, 0, height)
-        self.camera.viewport = self.rect
-        
-        new_center = self._get_center_position(width, height)
-        self.camera.position = (
-            self.camera.position[0] + (old_center[0] - new_center[0]),
-            self.camera.position[1] + (old_center[1] - new_center[1])
-        )
-        
+        # Calculate required world dimensions to show map + padding
+        required_world_width = map_width + 2 * self.padding
+        required_world_height = map_height + 2 * self.padding
+
+        # Prevent division by zero or negative values
+        if required_world_width <= 0 or required_world_height <= 0:
+             self.min_zoom = CAMERA_SETTINGS["MIN_ZOOM"] # Fallback
+             return
+
+        # Calculate zoom needed to fit width and height
+        zoom_for_width = self.width / required_world_width
+        zoom_for_height = self.height / required_world_height
+
+        # Minimum zoom is the smaller of the two, ensures both fit
+        self.min_zoom = min(zoom_for_width, zoom_for_height)
+
+        # Ensure min_zoom is not excessively small or zero/negative
+        self.min_zoom = max(self.min_zoom, CAMERA_SETTINGS["MIN_ZOOM"]) # Absolute minimum zoom floor
+
+    def center_camera_on_map(self):
+        """Center the camera's view on the map center."""
+        if self.map_bounds is None:
+            return
+
+        map_center_x = (self.map_bounds[0] + self.map_bounds[2]) / 2
+        map_center_y = (self.map_bounds[1] + self.map_bounds[3]) / 2
+        self.camera.position = (map_center_x, map_center_y)
+
+    def clamp_camera_position(self, x=None, y=None):
+        x = x or self.camera.position[0]
+        y = y or self.camera.position[1]
+        if not self.map_bounds:
+            return x, y
+
+        # Calculate visible area based on projection
+        proj = self.camera.projection
+        visible_width = proj.right - proj.left
+        visible_height = proj.top - proj.bottom
+
+        # Map boundaries with padding
+        map_left = self.map_bounds[0] - self.padding
+        map_right = self.map_bounds[2] + self.padding
+        map_bottom = self.map_bounds[1] - self.padding
+        map_top = self.map_bounds[3] + self.padding
+
+        # Calculate clamping boundaries for centered camera
+        min_x = map_left + visible_width / 2
+        max_x = map_right - visible_width / 2
+        min_y = map_bottom + visible_height / 2
+        max_y = map_top - visible_height / 2
+
+        # Handle map smaller than viewport
+        if visible_width > (map_right - map_left):
+            x = (map_left + map_right) / 2
+        else:
+            x = max(min_x, min(x, max_x))
+
+        if visible_height > (map_top - map_bottom):
+            y = (map_bottom + map_top) / 2
+        else:
+            y = max(min_y, min(y, max_y))
+
+        self.camera.position = (x, y)
+
+    def on_resize(self, width: int, height: int):
         super().on_resize(width, height)
+        if not self.camera:
+            return
+
+        # Update minimum zoom based on new window size
+        self.update_min_zoom()
+        self.camera.zoom = max(self.camera.zoom, self.min_zoom)
+
+        h_w = width / 2 / self.camera.zoom # half width
+        h_h = height / 2 / self.camera.zoom # half height
+        self.camera.viewport = self.rect
+        self.camera.projection = LRBT(-h_w, h_w, -h_h, h_h)
+        self.clamp_camera_position()
 
     def on_draw(self):
         """Render the screen."""
-        # Clear the screen to the background color
         self.clear()
-
-        # Activate our camera before drawing
         self.camera.use()
-
-        # Draw our game world
         self.scene.draw()
-        # arcade.draw_rect_outline(
-        #     LRBT(0, 400, 0, 300),
-        #     color=arcade.color.WHITE,
-        #     border_width=5,
-        # )
+        # Activate our GUI camera if you have GUI elements
+        # self.gui_camera.use()
+        # Draw GUI elements here
 
-        # Activate our GUI camera
-        self.gui_camera.use()
-
-    def camera_operation(self, key):
-        zoom_factor = CAMERA_OPS["ZOOM_FACTOR"]
-        old_center = self._get_center_from_projection()
-        
-        if key == CAMERA_OPS["ZOOM_IN"]:
-            self.camera.zoom = self.camera.zoom * zoom_factor
-        elif key == CAMERA_OPS["ZOOM_OUT"]:
-            self.camera.zoom = self.camera.zoom / zoom_factor
+    def zoom(self, key):
+        """Handle zoom operations."""
+        zoom_factor = CAMERA_SETTINGS["ZOOM_FACTOR"]
+        if key == CAMERA_SETTINGS["ZOOM_IN"]:
+            self.camera.zoom = min(self.camera.zoom * zoom_factor, self.max_zoom)
+        elif key == CAMERA_SETTINGS["ZOOM_OUT"]:
+            self.camera.zoom = max(self.camera.zoom / zoom_factor, self.min_zoom)
         else:
-            raise ValueError(f"Invalid camera operation: {key}")
-
-        # Calculate new center position
-        new_center = self._get_center_from_projection()
-        self.camera.position = (
-            self.camera.position[0] + (old_center[0] - new_center[0]),
-            self.camera.position[1] + (old_center[1] - new_center[1])
-        )
+             raise ValueError(f"Invalid camera operation: {key}")
+        self.clamp_camera_position()
 
     def on_mouse_press(self, x: int, y: int, button: int, modifiers: int):
         if button == arcade.MOUSE_BUTTON_LEFT:
             self.mouse_pressed = True
+            # Store the initial mouse position in screen coordinates
             self.last_mouse_position = (x, y)
 
     def on_mouse_release(self, x: int, y: int, button: int, modifiers: int):
@@ -157,47 +195,56 @@ class EvoTalesWorld(arcade.Window):
             self.mouse_pressed = False
 
     def on_mouse_drag(self, x: int, y: int, dx: int, dy: int, buttons: int, modifiers: int):
-        # Calculate the movement in world coordinates
-        world_dx = dx / self.camera.zoom
-        world_dy = dy / self.camera.zoom
-        
-        # Update camera position
-        self.camera.position = (
-            self.camera.position[0] - world_dx,
-            self.camera.position[1] - world_dy
-        )
-        
-        self.last_mouse_position = (x, y)
+        if self.mouse_pressed:
+            # Calculate movement delta in world coordinates
+            # dx/dy are screen coordinate changes, convert to world coord changes
+            world_dx = dx / self.camera.zoom
+            world_dy = dy / self.camera.zoom
+
+            # Calculate new potential position (subtract world delta)
+            new_x = self.camera.position[0] - world_dx
+            new_y = self.camera.position[1] - world_dy
+            self.clamp_camera_position(new_x, new_y)
+
+            # Update last mouse position for next drag event
+            self.last_mouse_position = (x, y)
 
     def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
         if scroll_y > 0:
-            self.camera_operation(CAMERA_OPS["ZOOM_IN"])
+            self.zoom(CAMERA_SETTINGS["ZOOM_IN"])
         elif scroll_y < 0:
-            self.camera_operation(CAMERA_OPS["ZOOM_OUT"])
+            self.zoom(CAMERA_SETTINGS["ZOOM_OUT"])
 
     def on_key_press(self, key, modifiers):
         self.pressed_keys.add(key)
-        if key in [arcade.key.X, arcade.key.Z]:
-            if key == arcade.key.X:
-                self.camera_operation(CAMERA_OPS["ZOOM_IN"])
-            elif key == arcade.key.Z:
-                self.camera_operation(CAMERA_OPS["ZOOM_OUT"])
+        # Handle zoom keys directly here now, calling camera_operation
+        if key == arcade.key.X: # Assuming X is zoom in
+            self.zoom(CAMERA_SETTINGS["ZOOM_IN"])
+        elif key == arcade.key.Z: # Assuming Z is zoom out
+             self.zoom(CAMERA_SETTINGS["ZOOM_OUT"])
+        # Note: Panning keys are handled in on_update
 
     def on_key_release(self, key, modifiers):
         self.pressed_keys.discard(key)
 
     def on_update(self, delta_time):
-        pan_rate = CAMERA_OPS["PAN_RATE"] * delta_time * 60  # Adjust for frame rate
-        
+        pan_speed = CAMERA_SETTINGS["PAN_RATE"] * delta_time  # pixels per second
+        dx = dy = 0
+
         if arcade.key.LEFT in self.pressed_keys:
-            self.camera.position = (self.camera.position[0] - pan_rate, self.camera.position[1])
+            dx -= pan_speed
         if arcade.key.RIGHT in self.pressed_keys:
-            self.camera.position = (self.camera.position[0] + pan_rate, self.camera.position[1])
+            dx += pan_speed
         if arcade.key.UP in self.pressed_keys:
-            self.camera.position = (self.camera.position[0], self.camera.position[1] + pan_rate)
+            dy += pan_speed
         if arcade.key.DOWN in self.pressed_keys:
-            self.camera.position = (self.camera.position[0], self.camera.position[1] - pan_rate)
-    
+            dy -= pan_speed
+
+        if dx or dy:
+            new_x = self.camera.position[0] + dx
+            new_y = self.camera.position[1] + dy
+            self.camera.position = self.clamp_camera_position(new_x, new_y)
+
     def on_close(self):
         # More graceful shutdown sequence
         arcade.close_window()
