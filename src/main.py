@@ -1,5 +1,5 @@
 import arcade
-from environment import EvoTalesWorld
+from src.environment import EvoTalesWorld
 
 def main():
     # Create the simulation world window and run the Arcade event loop

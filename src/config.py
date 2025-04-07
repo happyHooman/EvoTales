@@ -15,7 +15,7 @@ CAMERA_SETTINGS = {
     "PAN_RATE": 300,
     "MIN_ZOOM": 0.1,
     "MAX_ZOOM": 4.0,
-    "CLAMP_PADDING": 20.0,
+    "PADDING": 20.0,
 }
 
 # Walking creature configuration
