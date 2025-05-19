@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Use the official Arcade documentation and given examples from Arcade documentation like Simple platformer and Pymunk platformer. Use that code as an inspiration for current changes.
+This is the link to the correct Arcade Documentation https://api.arcade.academy/en/latest/tutorials/platform_tutorial/step_12.html
+As you can notice we're using latest arcade in this project. 
+Only use other sources if you tried hard enough browsing the official documentation and not found a solution in the official arcade documentation. You should ask permision before browsing other sources.

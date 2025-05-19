@@ -18,7 +18,6 @@ class MapBounds:
         return (self.width / 2, self.height / 2)
 
 
-
 class CameraController:
     def __init__(self, camera_settings, window):
         self.camera = None
@@ -38,9 +37,7 @@ class CameraController:
         self.center_camera()
     
     def update_min_zoom(self):
-        print("update min zoom")
         if not self.map_bounds:
-            print("no map bounds")
             return
         
         zoom_for_width = self.window.width / self.map_bounds.full_width
@@ -48,7 +45,6 @@ class CameraController:
 
         self.min_zoom = max(min(zoom_for_width, zoom_for_height), self.min_allowed_zoom)
         self.camera.zoom = max(self.min_zoom, self.camera.zoom)
-        print(f"min_zoom: {self.min_zoom}")
 
     def center_camera(self):
         if not self.map_bounds:
@@ -101,7 +97,6 @@ class CameraController:
         else:
             raise ValueError(f"Invalid zoom direction: {direction}. Only 'in' or 'out' are allowed.")
         
-        print(f"zoom: {self.camera.zoom}")
         self.clamp_position()
 
     def handle_drag(self, dx, dy):

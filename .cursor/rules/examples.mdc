@@ -1,0 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+use the examples downloaded from official site in the inspiration directory.
+The basic_platformer.py and pymunk_platformer.py are examples from arcade documentation.
+ev4.py is a previous example I got to a more advanced stage with a different library. Although the graphics is poorly managed there, the logic for creatures and plants is where we want to get to.
