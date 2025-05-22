@@ -1,6 +1,7 @@
 import arcade
 from arcade.types.rect import LBWH
 from typing import Dict, Tuple, Optional
+from sprite_config import SPRITE_CONFIGS, SPRITE_SHEETS
 
 class SpriteManager:
     """
@@ -15,15 +16,34 @@ class SpriteManager:
         self._adjustment_step = 1  # Default step size for adjustments
         self.handler_keys = [arcade.key.W, arcade.key.A, arcade.key.S, arcade.key.D, arcade.key.Q, arcade.key.E, arcade.key.F]
         
+        # Default scaling for sprites
+        self.default_scale = 1.0
+        
+    def load_all_sprite_sheets(self) -> None:
+        """
+        Load all sprite sheets defined in SPRITE_SHEETS configuration.
+        This automatically registers sprite configs for each sheet.
+        """
+        for sheet_name, path in SPRITE_SHEETS.items():
+            print(f"Loading sprite sheet: {sheet_name} from {path}")
+            self.load_sprite_sheet(sheet_name, path)
+        
     def load_sprite_sheet(self, name: str, path: str) -> None:
         """
-        Load a sprite sheet into memory.
+        Load a sprite sheet into memory and automatically register its sprite configurations.
         
         Args:
             name: Unique identifier for the sprite sheet
             path: Path to the sprite sheet image file
         """
         self._sprite_sheets[name] = arcade.load_spritesheet(path)
+        
+        # Automatically register sprite configs for this sheet
+        if name in SPRITE_CONFIGS:
+            for sprite_name, coords in SPRITE_CONFIGS[name].items():
+                self.register_sprite_config(name, sprite_name, *coords)
+        else:
+            print(f"Warning: No sprite configs found for sheet '{name}'")
         
     def register_sprite_config(self, 
                              sheet_name: str,
@@ -74,23 +94,46 @@ class SpriteManager:
         
         return self._sprite_sheets[sheet_name].get_texture(sprite_rect, y_up=y_up)
         
+    def find_sprite_sheet(self, sprite_name: str) -> Optional[str]:
+        """
+        Find which sprite sheet contains the given sprite name.
+        
+        Args:
+            sprite_name: Name of the sprite to search for
+            
+        Returns:
+            The sheet name containing the sprite, or None if not found
+        """
+        for sheet_name, sprites in SPRITE_CONFIGS.items():
+            if sprite_name in sprites:
+                return sheet_name
+        return None
+        
     def create_sprite(self,
-                     sheet_name: str,
                      sprite_name: str,
-                     scale: float = 1.0,
+                     scale: float = None,
                      y_up: bool = True) -> Optional[arcade.Sprite]:
         """
         Create a new sprite with the specified texture.
+        Automatically finds the correct sprite sheet.
         
         Args:
-            sheet_name: Name of the sprite sheet
-            sprite_name: Name of the sprite
-            scale: Scale factor for the sprite
+            sprite_name: Name of the sprite (e.g., "smartie", "plant_stage_1")
+            scale: Scale factor for the sprite (uses default_scale if None)
             y_up: Whether the sprite sheet uses y-up coordinates
             
         Returns:
             A new sprite with the specified texture or None if not found
         """
+        if scale is None:
+            scale = self.default_scale
+        
+        # Find which sheet contains this sprite
+        sheet_name = self.find_sprite_sheet(sprite_name)
+        if sheet_name is None:
+            print(f"Warning: Sprite '{sprite_name}' not found in any sprite sheet")
+            return None
+            
         texture = self.get_sprite_texture(sheet_name, sprite_name, y_up)
         if texture is None:
             return None
@@ -142,4 +185,26 @@ class SpriteManager:
             
         # Update the sprite configuration
         self._sprite_configs[sheet_name][sprite_name] = (left, bottom, width, height)
-        return True 
+        return True
+        
+    def adjust_sprite_position_by_name(self,
+                                     sprite_name: str,
+                                     direction: str,
+                                     step: Optional[int] = None) -> bool:
+        """
+        Adjust the position of a sprite within the spritesheet using just the sprite name.
+        
+        Args:
+            sprite_name: Name of the sprite to adjust
+            direction: Direction to move ('w', 'a', 's', 'd')
+            step: Optional step size for the adjustment (defaults to self._adjustment_step)
+            
+        Returns:
+            bool: True if adjustment was successful, False otherwise
+        """
+        sheet_name = self.find_sprite_sheet(sprite_name)
+        if sheet_name is None:
+            print(f"Warning: Sprite '{sprite_name}' not found for adjustment")
+            return False
+            
+        return self.adjust_sprite_position(sheet_name, sprite_name, direction, step) 

@@ -6,10 +6,9 @@ from config import *
 from simulation.camera_controller import CameraController
 from arcade.types.rect import Rect, LRBT, LBWH
 from sprite_manager import SpriteManager
-from sprite_config import SPRITE_SHEETS, SPRITE_CONFIGS
 
 TILE_SCALING = 1.0
-SPRITE_SCALING = 1.0
+SPRITE_DEBUG = False
 
 class SimulationWindow(arcade.Window):
     """
@@ -32,19 +31,10 @@ class SimulationWindow(arcade.Window):
         # Initialize the CameraController
         self.camera_controller = CameraController(CAMERA_SETTINGS, self)
 
-        # Initialize the SpriteManager
+        # Initialize the SpriteManager and load all sprite sheets
         self.sprite_manager = SpriteManager()
+        self.sprite_manager.load_all_sprite_sheets()
         
-        # Load sprite sheets and configurations
-        for sheet_name, path in SPRITE_SHEETS.items():
-            self.sprite_manager.load_sprite_sheet(sheet_name, path)
-            for sprite_name, coords in SPRITE_CONFIGS[sheet_name].items():
-                self.sprite_manager.register_sprite_config(
-                    sheet_name,
-                    sprite_name,
-                    *coords
-                )
-
         # Key tracking for smooth panning
         self.pressed_keys = set()
 
@@ -78,48 +68,16 @@ class SimulationWindow(arcade.Window):
         # Add a plant layer
         self.plant_list = arcade.SpriteList()
         self.scene.add_sprite_list("plants", self.plant_list)
-        
-        # Debug: Print sprite sheet loading
-        print("Loading sprite sheets...")
-        for sheet_name, path in SPRITE_SHEETS.items():
-            print(f"Loading sheet: {sheet_name} from {path}")
-            self.sprite_manager.load_sprite_sheet(sheet_name, path)
-            print(f"Sheet loaded: {sheet_name}")
-            for sprite_name, coords in SPRITE_CONFIGS[sheet_name].items():
-                print(f"Registering sprite: {sprite_name} with coords {coords}")
-                self.sprite_manager.register_sprite_config(
-                    sheet_name,
-                    sprite_name,
-                    *coords
-                )
-        
+
         # Create and add a single plant using the sprite manager
-        print("\nCreating plant sprite...")
-        plant = self.sprite_manager.create_sprite(
-            "creatures",
-            "smartie",
-            scale=SPRITE_SCALING
-        )
+        plant = self.sprite_manager.create_sprite("smartie")
+        plant.center_x = map_width / 2
+        plant.center_y = map_height / 2
         
-        if plant:
-            print("Plant sprite created successfully")
-            # Position the plant in the center of the map
-            plant.center_x = map_width / 2
-            plant.center_y = map_height / 2
-            self.plant_list.append(plant)
-            
-            # Debug print
-            print(f"Plant created at position: ({plant.center_x}, {plant.center_y})")
-            print(f"Plant texture size: {plant.texture.width}x{plant.texture.height}")
-            print(f"Plant sprite size: {plant.width}x{plant.height}")
-        else:
-            print("Failed to create plant sprite!")
-            # Try to get the texture directly to debug
-            texture = self.sprite_manager.get_sprite_texture("creatures", "plant_stage_4")
-            if texture:
-                print("Texture exists but sprite creation failed")
-            else:
-                print("Texture not found")
+        # Add directly to scene instead of through plant_list
+        self.scene.add_sprite("plants", plant)
+        # Also add to our reference for easy access
+        self.plant_list.append(plant)
 
     def on_resize(self, width: int, height: int):
         """Handle window resizing events."""
@@ -130,11 +88,7 @@ class SimulationWindow(arcade.Window):
         """Render the screen."""
         self.clear()
         self.camera_controller.camera.use()
-        # Draw the scene layers in order
         self.scene.draw()
-        # Draw the plants layer
-        self.plant_list.draw()
-        
 
     def on_mouse_drag(self, x: int, y: int, dx: int, dy: int, buttons: int, modifiers: int):
         """Handle mouse drag events for camera panning."""
@@ -154,14 +108,28 @@ class SimulationWindow(arcade.Window):
             self.camera_controller.apply_zoom("in")
         elif key == arcade.key.Z:
             self.camera_controller.apply_zoom("out")
-        # Add sprite position adjustment with WASD
-        elif key in self.sprite_manager.handler_keys:
+        
+        if SPRITE_DEBUG:
+            self.sprite_adjust(key, modifiers)
+        
+
+    def sprite_adjust(self, key, modifiers):
+        """
+        Adjust the sprite position based on the key pressed. You have to select or define a sprite first
+        """
+        # TODO: fix this function
+        if key in self.sprite_manager.handler_keys:
             if self.plant_list:
-                plant = self.plant_list[0]
+                plant = self.plant_list[0]  
                 direction = chr(key).lower()
-                if self.sprite_manager.adjust_sprite_position("creatures", "plant_stage_1", direction):
+                # For now, assume we're adjusting the smartie sprite
+                sprite_name = "smartie"
+                if self.sprite_manager.adjust_sprite_position_by_name(sprite_name, direction):
                     # Update the plant's texture with the new position
-                    new_texture = self.sprite_manager.get_sprite_texture("creatures", "plant_stage_1")
+                    new_texture = self.sprite_manager.get_sprite_texture(
+                        self.sprite_manager.find_sprite_sheet(sprite_name), 
+                        sprite_name
+                    )
                     if new_texture:
                         plant.texture = new_texture
 
