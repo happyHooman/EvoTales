@@ -88,14 +88,7 @@ class SimulationWindow(arcade.Window):
         self.clear()
         self.camera_controller.camera.use()
         
-        # Draw adjustment scene if active, otherwise draw normal scene
-        adjustment_scene = self.sprite_manager.get_adjustment_scene()
-        if adjustment_scene:
-            adjustment_scene.draw()
-            # Draw adjustment outline on top
-            self.sprite_manager.draw_adjustment_outline()
-        else:
-            self.scene.draw()
+        self.scene.draw()
 
     def on_mouse_drag(self, x: int, y: int, dx: int, dy: int, buttons: int, modifiers: int):
         """Handle mouse drag events for camera panning."""
@@ -112,20 +105,12 @@ class SimulationWindow(arcade.Window):
         """Handle key press events."""
         self.pressed_keys.add(key)
         
-        # Check if sprite manager handles the key
-        if self.sprite_manager.handle_adjustment_key(key):
-            return
             
         # Regular game keys
         if key == arcade.key.X:
             self.camera_controller.apply_zoom("in")
         elif key == arcade.key.Z:
             self.camera_controller.apply_zoom("out")
-        elif key == arcade.key.T:
-            # Test sprite adjustment
-            map_width = self.tile_map.width * self.tile_map.tile_width
-            map_height = self.tile_map.height * self.tile_map.tile_height
-            self.sprite_manager.start_sprite_adjustment("smartie", self.scene, map_width, map_height, self)
 
     def on_key_release(self, key, modifiers):
         """Handle key release events."""
