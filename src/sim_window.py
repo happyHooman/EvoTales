@@ -4,10 +4,11 @@ import sys
 import arcade
 from config import *
 from simulation.camera_controller import CameraController
-from arcade.types.rect import Rect, LRBT, LBWH
-from sprite_manager import SpriteManager
+from typing import Optional
+from entities import EntityManager
 
 TILE_SCALING = 1.0
+DEFAULT_DAMPING = .6
 
 class SimulationWindow(arcade.Window):
     """
@@ -26,57 +27,17 @@ class SimulationWindow(arcade.Window):
         )
         self.set_exclusive_keyboard(False)
         self.set_minimum_size(400, 300)
-
-        # Initialize the CameraController
-        self.camera_controller = CameraController(CAMERA_SETTINGS, self)
-
-        # Initialize the SpriteManager and load all sprite sheets
-        self.sprite_manager = SpriteManager()
-        self.sprite_manager.load_all_sprite_sheets()
-        
-        # Key tracking for smooth panning
         self.pressed_keys = set()
-
-        # Set the background color
+        self.camera_controller = CameraController(CAMERA_SETTINGS, self)
         self.background_color = arcade.color.AMAZON
-
-        # Tile map and scene setup
-        self.tile_map = None
-        self.scene = None
-        self.plant_list = None
+        self.entity_manager: Optional[EntityManager] = None
 
     def setup(self):
         """Set up the game environment. Call this function to restart the game."""
-        layer_options = {
-            "ground": {
-                "use_spatial_hash": True
-            }
-        }
-        self.tile_map = arcade.load_tilemap(
-            "assets/maps/uniform_map.json",
-            scaling=TILE_SCALING,
-            layer_options=layer_options
-        )
-        map_width = self.tile_map.width * self.tile_map.tile_width
-        map_height = self.tile_map.height * self.tile_map.tile_height
+        self.entity_manager = EntityManager()
+        map_width, map_height = self.entity_manager.get_map_size()
         self.camera_controller.setup(map_width, map_height)
-        
-        # Create the scene
-        self.scene = arcade.Scene.from_tilemap(self.tile_map)
-        
-        # Add a plant layer
-        self.plant_list = arcade.SpriteList()
-        self.scene.add_sprite_list("plants", self.plant_list)
-
-        # Create and add a single plant using the sprite manager
-        plant = self.sprite_manager.create_sprite("smartie")
-        plant.center_x = map_width / 2
-        plant.center_y = map_height / 2
-        
-        # Add directly to scene instead of through plant_list
-        self.scene.add_sprite("plants", plant)
-        # Also add to our reference for easy access
-        self.plant_list.append(plant)
+        self.entity_manager.generate_initial_population()
 
     def on_resize(self, width: int, height: int):
         """Handle window resizing events."""
@@ -87,8 +48,7 @@ class SimulationWindow(arcade.Window):
         """Render the screen."""
         self.clear()
         self.camera_controller.camera.use()
-        
-        self.scene.draw()
+        self.entity_manager.scene.draw()
 
     def on_mouse_drag(self, x: int, y: int, dx: int, dy: int, buttons: int, modifiers: int):
         """Handle mouse drag events for camera panning."""

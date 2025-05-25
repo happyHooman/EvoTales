@@ -53,3 +53,7 @@ WALKING_CREATURE_CONFIG = {
         "energy_cost_reproduction": 35,
     },
 }
+
+# Physics settings
+DEFAULT_DAMPING = .6
+GRAVITY = (0, 0)
