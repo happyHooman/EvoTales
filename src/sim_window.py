@@ -63,9 +63,7 @@ class SimulationWindow(arcade.Window):
 
     def on_key_press(self, key, modifiers):
         """Handle key press events."""
-        self.pressed_keys.add(key)
-        
-            
+        self.pressed_keys.add(key)            
         # Regular game keys
         if key == arcade.key.X:
             self.camera_controller.apply_zoom("in")
@@ -79,6 +77,7 @@ class SimulationWindow(arcade.Window):
     def on_update(self, delta_time):
         """Update game logic."""
         self.camera_controller.update_panning(self.pressed_keys, delta_time)
+        self.entity_manager.update(delta_time)
 
     def on_close(self):
         """Handle window close events for a graceful shutdown."""

@@ -150,3 +150,57 @@ class SpriteManager:
         sprite = arcade.Sprite(scale=scale)
         sprite.texture = texture
         return sprite
+
+    def get_texture(self, 
+                     sprite_name_or_list: str | list[str],
+                     y_up: bool = True) -> Optional[arcade.Texture | list[arcade.Texture]]:
+        """
+        Get a single texture or a list of textures by sprite name(s).
+        Automatically finds the correct sprite sheet for each name.
+
+        Args:
+            sprite_name_or_list: A single sprite name (str) or a list of sprite names (list[str]).
+            y_up: Whether the sprite sheet uses y-up coordinates.
+
+        Returns:
+            An arcade.Texture if a single name was given,
+            A list of arcade.Texture objects if a list of names was given,
+            Or None if any sprite name is not found or an error occurs.
+        """
+        if isinstance(sprite_name_or_list, str):
+            # Handle single sprite name
+            sprite_name = sprite_name_or_list
+            sheet_name = self.find_sprite_sheet(sprite_name)
+            if sheet_name is None:
+                print(f"Warning: Sprite '{sprite_name}' not found in any sprite sheet configuration.")
+                return None
+            texture = self.get_sprite_texture(sheet_name, sprite_name, y_up)
+            if texture is None:
+                # get_sprite_texture would have printed a warning if config was missing for a found sheet
+                print(f"Warning: Could not load texture for sprite '{sprite_name}' from sheet '{sheet_name}'.")
+            return texture
+        
+        elif isinstance(sprite_name_or_list, list):
+            # Handle list of sprite names
+            textures = []
+            for sprite_name in sprite_name_or_list:
+                if not isinstance(sprite_name, str):
+                    print(f"Warning: Item '{sprite_name}' in list is not a string. Skipping.")
+                    textures.append(None) # Or handle error differently
+                    continue
+                
+                sheet_name = self.find_sprite_sheet(sprite_name)
+                if sheet_name is None:
+                    print(f"Warning: Sprite '{sprite_name}' not found in any sprite sheet configuration. Appending None.")
+                    textures.append(None)
+                    continue
+                
+                texture = self.get_sprite_texture(sheet_name, sprite_name, y_up)
+                if texture is None:
+                    print(f"Warning: Could not load texture for sprite '{sprite_name}' from sheet '{sheet_name}'. Appending None.")
+                textures.append(texture)
+            return textures
+        
+        else:
+            print(f"Warning: Invalid type for sprite_name_or_list. Expected str or list, got {type(sprite_name_or_list)}.")
+            return None
