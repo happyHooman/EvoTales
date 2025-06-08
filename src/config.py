@@ -18,6 +18,26 @@ CAMERA_SETTINGS = {
     "PADDING": 20.0,
 }
 
+# Plant configuration
+PLANT_CONFIG = {
+    "max_growth_level": 4,
+    "max_growth_timer": 10,
+    "reproduction_delay": 3,
+    "seed_range": 500,
+    "growth_textures": [
+        "plant_stage_1",
+        "plant_stage_2",
+        "plant_stage_3",
+        "plant_stage_4",
+    ],
+    "reproduction": {
+        "factor": 1.2,
+        "max_fails": 5,
+        "max_successes": 3,
+    },
+    "provided_energy": [10, 20, 30, 50]
+}
+
 # Walking creature configuration
 WALKING_CREATURE_CONFIG = {
     "default": {

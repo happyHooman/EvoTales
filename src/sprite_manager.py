@@ -204,3 +204,7 @@ class SpriteManager:
         else:
             print(f"Warning: Invalid type for sprite_name_or_list. Expected str or list, got {type(sprite_name_or_list)}.")
             return None
+
+
+sprite_manager = SpriteManager()
+sprite_manager.load_all_sprite_sheets()

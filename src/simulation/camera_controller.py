@@ -1,5 +1,5 @@
 import arcade
-from arcade.types import Rect, LRBT
+from arcade.types import LRBT
 
 class MapBounds:
     def __init__(self, width, height, padding):

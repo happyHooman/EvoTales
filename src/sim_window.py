@@ -5,7 +5,7 @@ import arcade
 from config import *
 from simulation.camera_controller import CameraController
 from typing import Optional
-from entities import EntityManager
+from entities.entity_manager import EntityManager
 
 TILE_SCALING = 1.0
 DEFAULT_DAMPING = .6
@@ -37,7 +37,7 @@ class SimulationWindow(arcade.Window):
         self.entity_manager = EntityManager()
         map_width, map_height = self.entity_manager.get_map_size()
         self.camera_controller.setup(map_width, map_height)
-        self.entity_manager.generate_initial_population()
+        self.entity_manager.spawn_initial_population()
 
     def on_resize(self, width: int, height: int):
         """Handle window resizing events."""
