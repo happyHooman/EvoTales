@@ -6,4 +6,6 @@
 *.pyd
 *.pyw
 *.pyz
+.venv/
 .DS_Store
+uv.lock

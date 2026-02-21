@@ -1,5 +1,4 @@
 import arcade
-from arcade.types import LRBT
 
 class MapBounds:
     def __init__(self, width, height, padding):
@@ -53,10 +52,14 @@ class CameraController:
         self.camera.position = self.map_bounds.center
 
     def clamp_position(self, x=None, y=None):
-        x = x or self.camera.position[0]
-        y = y or self.camera.position[1]
+        if x is None:
+            x = self.camera.position[0]
+        if y is None:
+            y = self.camera.position[1]
         if not self.map_bounds:
             return x, y
+
+        # self.camera.grips.contains(x, y)
 
         visible_width = self.camera.projection.width
         visible_height = self.camera.projection.height
@@ -83,10 +86,7 @@ class CameraController:
 
     def handle_resize(self, width, height):
         self.update_min_zoom()
-        self.camera.viewport = self.window.rect
-        h_w = width / 2 / self.camera.zoom # half width
-        h_h = height / 2 / self.camera.zoom # half height
-        self.camera.projection = LRBT(-h_w, h_w, -h_h, h_h)
+        self.camera.match_window()
         self.clamp_position()
 
     def apply_zoom(self, direction):
@@ -96,7 +96,6 @@ class CameraController:
             self.camera.zoom = max(self.camera.zoom / self.zoom_factor, self.min_zoom)
         else:
             raise ValueError(f"Invalid zoom direction: {direction}. Only 'in' or 'out' are allowed.")
-        
         self.clamp_position()
 
     def handle_drag(self, dx, dy):
@@ -119,6 +118,11 @@ class CameraController:
 
         if dx or dy:
             (old_x, old_y) = self.camera.position
-            new_x = old_x + dx
-            new_y = old_y + dy
+            world_dx = dx / self.camera.zoom
+            world_dy = dy / self.camera.zoom
+            new_x = old_x + world_dx
+            new_y = old_y + world_dy
             self.clamp_position(new_x, new_y)
+
+    def use(self):
+        self.camera.use()

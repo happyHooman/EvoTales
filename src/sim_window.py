@@ -6,6 +6,7 @@ from config import *
 from simulation.camera_controller import CameraController
 from typing import Optional
 from entities.entity_manager import EntityManager
+from input_controller import CameraMode, InputController, InputTargets
 
 TILE_SCALING = 1.0
 DEFAULT_DAMPING = .6
@@ -27,8 +28,11 @@ class SimulationWindow(arcade.Window):
         )
         self.set_exclusive_keyboard(False)
         self.set_minimum_size(400, 300)
-        self.pressed_keys = set()
         self.camera_controller = CameraController(CAMERA_SETTINGS, self)
+        self.input_controller = InputController(
+            InputTargets(camera=self.camera_controller),
+            default_mode=CameraMode(),
+        )
         self.background_color = arcade.color.AMAZON
         self.entity_manager: Optional[EntityManager] = None
 
@@ -47,36 +51,28 @@ class SimulationWindow(arcade.Window):
     def on_draw(self):
         """Render the screen."""
         self.clear()
-        self.camera_controller.camera.use()
+        self.camera_controller.use()
         self.entity_manager.scene.draw()
 
     def on_mouse_drag(self, x: int, y: int, dx: int, dy: int, buttons: int, modifiers: int):
         """Handle mouse drag events for camera panning."""
-        self.camera_controller.handle_drag(dx, dy)
+        self.input_controller.on_mouse_drag(x, y, dx, dy, buttons, modifiers)
 
     def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
         """Handle mouse scroll events for zooming."""
-        if scroll_y > 0:
-            self.camera_controller.apply_zoom("in")
-        elif scroll_y < 0:
-            self.camera_controller.apply_zoom("out")
+        self.input_controller.on_mouse_scroll(x, y, scroll_x, scroll_y)
 
     def on_key_press(self, key, modifiers):
         """Handle key press events."""
-        self.pressed_keys.add(key)            
-        # Regular game keys
-        if key == arcade.key.X:
-            self.camera_controller.apply_zoom("in")
-        elif key == arcade.key.Z:
-            self.camera_controller.apply_zoom("out")
+        self.input_controller.on_key_press(key, modifiers)
 
     def on_key_release(self, key, modifiers):
         """Handle key release events."""
-        self.pressed_keys.discard(key)
+        self.input_controller.on_key_release(key, modifiers)
 
     def on_update(self, delta_time):
         """Update game logic."""
-        self.camera_controller.update_panning(self.pressed_keys, delta_time)
+        self.input_controller.update(delta_time)
         self.entity_manager.update(delta_time)
 
     def on_close(self):
