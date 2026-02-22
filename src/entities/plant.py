@@ -6,6 +6,16 @@ from sprite_manager import sprite_manager
 
 
 class Plant(Entity):
+    @staticmethod
+    def spawn_initial(entity_manager):
+        padding = PLANT_CONFIG["bounds_padding"]
+        map_w, map_h = entity_manager.map_size
+        for _ in range(PLANT_CONFIG["initial_count"]):
+            growth_level = random.randint(1, PLANT_CONFIG["max_growth_level"])
+            x = random.uniform(padding, map_w - padding)
+            y = random.uniform(padding, map_h - padding)
+            entity_manager.handle_seed_drop(x, y, growth_level=growth_level)
+
     def __init__(self, x, y, entity_manager, growth_level=1):
         if growth_level < 1 or growth_level > PLANT_CONFIG["max_growth_level"]:
             raise ValueError(f"Invalid growth level: {growth_level}. Must be between 1 and {PLANT_CONFIG['max_growth_level']}")
@@ -83,7 +93,7 @@ class Plant(Entity):
 
     def drop_seed(self) -> bool:
         direction = random.uniform(0, 2 * math.pi)
-        distance = random.uniform(40, self.config["seed_range"])
+        distance = random.uniform(self.config["seed_min_distance"], self.config["seed_range"])
         seed_x = self.center_x + distance * math.cos(direction)
         seed_y = self.center_y + distance * math.sin(direction)
         return self.entity_manager.handle_seed_drop(seed_x, seed_y)

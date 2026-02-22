@@ -31,54 +31,29 @@ class EntityManager():
         self.scene.physics_engine = arcade.PymunkPhysicsEngine(damping=DEFAULT_DAMPING, gravity=GRAVITY)
         self.map_size = self.tile_map.width * self.tile_map.tile_width, self.tile_map.height * self.tile_map.tile_height
         
-    def handle_seed_drop(
-        self,
-        seed_x: float,
-        seed_y: float,
-        min_spacing: float = 50.0,
-        *,
-        growth_level: int = 1,
-    ) -> bool:
+    def handle_seed_drop(self, seed_x: float, seed_y: float, *, growth_level: int = 1) -> bool:
         map_width, map_height = self.map_size
-        min_spacing_squared = min_spacing * min_spacing
-        padding = 50
-        out_of_bounds = seed_x < padding or seed_x > map_width-padding or seed_y < padding or seed_y > map_height-padding
-        if out_of_bounds:
+        padding = PLANT_CONFIG["bounds_padding"]
+        min_spacing = PLANT_CONFIG["min_spacing"]
+        min_spacing_sq = min_spacing * min_spacing
+
+        if not (padding <= seed_x <= map_width - padding and padding <= seed_y <= map_height - padding):
             return False
 
-        if not (padding <= seed_x < map_width-padding and padding <= seed_y < map_height-padding):
-            return False
-
-        query_rect_half_size = min_spacing
         query_bb = pymunk.BB(
-            seed_x - query_rect_half_size,
-            seed_y - query_rect_half_size,
-            seed_x + query_rect_half_size,
-            seed_y + query_rect_half_size
+            seed_x - min_spacing,
+            seed_y - min_spacing,
+            seed_x + min_spacing,
+            seed_y + min_spacing,
         )
-
-        shapes_in_bb = self.scene.physics_engine.space.bb_query(query_bb, pymunk.ShapeFilter())
-
-        candidate_plants_from_shapes = []
-        for shape in shapes_in_bb:
+        for shape in self.scene.physics_engine.space.bb_query(query_bb, pymunk.ShapeFilter()):
             sprite = self.scene.physics_engine.get_sprite_for_shape(shape)
-            if sprite and hasattr(sprite, 'collision_type') and sprite.collision_type == "plant":
-                if not (abs(sprite.center_x - self.center_x) < 0.1 and abs(sprite.center_y - self.center_y) < 0.1 if hasattr(self, 'center_x') else False):
-                    candidate_plants_from_shapes.append(sprite)
-            elif sprite and not hasattr(sprite, 'collision_type'):
-                if isinstance(sprite, Plant):
-                    if not (abs(sprite.center_x - self.center_x) < 0.1 and abs(sprite.center_y - self.center_y) < 0.1 if hasattr(self, 'center_x') else False):
-                        candidate_plants_from_shapes.append(sprite)
-
-        if candidate_plants_from_shapes:
-            for plant_sprite in candidate_plants_from_shapes:
-                if plant_sprite and hasattr(plant_sprite, 'center_x') and hasattr(plant_sprite, 'center_y'):
-                    dx = plant_sprite.center_x - seed_x
-                    dy = plant_sprite.center_y - seed_y
-                    if (dx*dx + dy*dy) < min_spacing_squared:
-                        return False
-                else:
-                    print(f"Warning: Found a candidate shape in bb_query without a valid sprite or position.")
+            if not isinstance(sprite, Plant):
+                continue
+            dx = sprite.center_x - seed_x
+            dy = sprite.center_y - seed_y
+            if dx * dx + dy * dy < min_spacing_sq:
+                return False
 
         self.add_plant(seed_x, seed_y, growth_level=growth_level)
         return True
@@ -117,23 +92,7 @@ class EntityManager():
         return self.tile_map.width * self.tile_map.tile_width, self.tile_map.height * self.tile_map.tile_height
     
     def spawn_initial_population(self):
-        target_plants = 100
-        placed = 0
-        attempts = 0
-        max_attempts = target_plants * 20
-
-        # Use the same placement rules as reproduction, otherwise we can start
-        # the simulation with overlapping plants.
-        while placed < target_plants and attempts < max_attempts:
-            attempts += 1
-            padding = 20
-            growth_level = random.randint(1, PLANT_CONFIG["max_growth_level"])
-            x = random.uniform(padding, self.map_size[0] - padding)
-            y = random.uniform(padding, self.map_size[1] - padding)
-
-            if self.handle_seed_drop(x, y, min_spacing=40.0, growth_level=growth_level):
-                placed += 1
-        
+        Plant.spawn_initial(self)
         self.add_herbivore()
 
         

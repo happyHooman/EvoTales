@@ -20,10 +20,14 @@ CAMERA_SETTINGS = {
 
 # Plant configuration
 PLANT_CONFIG = {
-    "max_growth_level": 4,
-    "max_growth_timer": 20,
-    "reproduction_delay": 10,
+    "initial_count": 100,
+    "min_spacing": 50,
+    "bounds_padding": 50,
+    "seed_min_distance": 40,
     "seed_range": 500,
+    "max_growth_level": 4,
+    "max_growth_timer": 10,
+    "reproduction_delay": 20,
     "growth_textures": [
         "plant_stage_1",
         "plant_stage_2",
