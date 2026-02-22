@@ -15,6 +15,7 @@ class SpriteManager:
         """Initialize the sprite manager."""
         self._sprite_sheets: Dict[str, arcade.SpriteSheet] = {}
         self._sprite_configs: Dict[str, Dict[str, Tuple[int, int, int, int, float]]] = {}
+        self._loaded: bool = False
         self._adjustment_step = 1  # Default step size for adjustments
         # self.handler_keys = [arcade.key.W, arcade.key.A, arcade.key.S, arcade.key.D, arcade.key.Q, arcade.key.E, arcade.key.F]
         
@@ -34,9 +35,12 @@ class SpriteManager:
         Load all sprite sheets defined in SPRITE_SHEETS configuration.
         This automatically registers sprite configs for each sheet.
         """
+        if self._loaded:
+            return
         for sheet_name, path in SPRITE_SHEETS.items():
             print(f"Loading sprite sheet: {sheet_name} from {path}")
             self.load_sprite_sheet(sheet_name, path)
+        self._loaded = True
         
     def load_sprite_sheet(self, name: str, path: str) -> None:
         """
@@ -101,10 +105,14 @@ class SpriteManager:
         if sprite_name not in self._sprite_configs[sheet_name]:
             return None
             
-        left, bottom, width, height, _ = self._sprite_configs[sheet_name][sprite_name]
+        left, bottom, width, height, scale = self._sprite_configs[sheet_name][sprite_name]
         sprite_rect = LBWH(left, bottom, width, height)
         
-        return self._sprite_sheets[sheet_name].get_texture(sprite_rect, y_up=y_up)
+        texture = self._sprite_sheets[sheet_name].get_texture(sprite_rect, y_up=y_up)
+        # Arcade textures don't apply scaling by themselves; we attach the intended
+        # scale here so sprites can consistently pick it up at construction time.
+        texture.properties["scale"] = scale
+        return texture
         
     def find_sprite_sheet(self, sprite_name: str) -> Optional[str]:
         """
@@ -123,7 +131,7 @@ class SpriteManager:
         
     def create_sprite(self,
                      sprite_name: str,
-                     scale: float = 1.0,
+                     scale: float | None = None,
                      y_up: bool = True) -> Optional[arcade.Sprite]:
         """
         Create a new sprite with the specified texture.
@@ -215,4 +223,3 @@ class SpriteManager:
 
 
 sprite_manager = SpriteManager()
-sprite_manager.load_all_sprite_sheets()

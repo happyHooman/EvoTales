@@ -15,15 +15,16 @@ s_height = 100
 
 # Sprite configurations
 # Format: (left, bottom, width, height, scale)
+SCALE = 0.15
 SPRITE_CONFIGS = {
     "creatures": {
-        "plant_stage_1": (0, s_width, s_width, s_height, 0.4),    # First stage plant
-        "plant_stage_2": (s_width, s_width, s_width, s_height, 0.4),   # Second stage plant
-        "plant_stage_3": (2 * s_width, s_width, s_width, s_height, 0.4),   # Third stage plant
-        "plant_stage_4": (0, 0, s_width, s_height, 0.4),  # Fully grown plant
-        "herbivore": (0, 2 * s_height, s_width, s_height, 0.4),       # Herbivore creature
-        "carnivore": (s_width, 2 * s_height, s_width, s_height, 0.4),      # Carnivore creature
-        "smartie": (2 * s_width, 2 * s_height, s_width, s_height, 0.4),        # Smart creature
+        "plant_stage_1": (0, s_width, s_width, s_height, SCALE),    # First stage plant
+        "plant_stage_2": (s_width, s_width, s_width, s_height, SCALE),   # Second stage plant
+        "plant_stage_3": (2 * s_width, s_width, s_width, s_height, SCALE),   # Third stage plant
+        "plant_stage_4": (0, 0, s_width, s_height, SCALE),  # Fully grown plant
+        "herbivore": (0, 2 * s_height, s_width, s_height, .2),       # Herbivore creature
+        "carnivore": (s_width, 2 * s_height, s_width, s_height, SCALE),      # Carnivore creature
+        "smartie": (2 * s_width, 2 * s_height, s_width, s_height, SCALE),        # Smart creature
     }
 }
 

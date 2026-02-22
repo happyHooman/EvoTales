@@ -7,6 +7,7 @@ from simulation.camera_controller import CameraController
 from typing import Optional
 from entities.entity_manager import EntityManager
 from input_controller import CameraMode, InputController, InputTargets
+from sprite_manager import sprite_manager
 
 TILE_SCALING = 1.0
 DEFAULT_DAMPING = .6
@@ -38,6 +39,7 @@ class SimulationWindow(arcade.Window):
 
     def setup(self):
         """Set up the game environment. Call this function to restart the game."""
+        sprite_manager.load_all_sprite_sheets()
         self.entity_manager = EntityManager()
         map_width, map_height = self.entity_manager.get_map_size()
         self.camera_controller.setup(map_width, map_height)

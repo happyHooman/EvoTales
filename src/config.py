@@ -12,7 +12,7 @@ CAMERA_SETTINGS = {
     "ZOOM_IN": "zoom_in",
     "ZOOM_OUT": "zoom_out",
     "ZOOM_FACTOR": 1.2,
-    "PAN_RATE": 300,
+    "PAN_RATE": 400,
     "MIN_ZOOM": 0.1,
     "MAX_ZOOM": 4.0,
     "PADDING": 20.0,
@@ -21,8 +21,8 @@ CAMERA_SETTINGS = {
 # Plant configuration
 PLANT_CONFIG = {
     "max_growth_level": 4,
-    "max_growth_timer": 40,
-    "reproduction_delay": 50,
+    "max_growth_timer": 20,
+    "reproduction_delay": 10,
     "seed_range": 500,
     "growth_textures": [
         "plant_stage_1",
