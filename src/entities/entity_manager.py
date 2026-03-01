@@ -2,6 +2,8 @@ import arcade
 from config import DEFAULT_DAMPING, GRAVITY
 from entities.plant import Plant
 from entities.herbivore import Herbivore
+from entities.carnivore import Carnivore
+from entities.smartie import Smarty
 
 TILE_SCALING = 1.0
 
@@ -31,7 +33,7 @@ class EntityManager():
 
     def update(self, delta_time: float = 1/60):
         """Update all entities and physics. Skip static ground layer."""
-        self.scene.update(delta_time, names=["plants", "herbivores"])
+        self.scene.update(delta_time, names=["plants", "herbivores", "carnivores", "smarties"])
         self.scene.physics_engine.step()
 
     def get_map_size(self):
@@ -40,5 +42,7 @@ class EntityManager():
     def spawn_initial_population(self):
         Plant.spawn_initial(self.scene, self.map_size)
         Herbivore.spawn_initial(self.scene, self.map_size)
+        Carnivore.spawn_initial(self.scene, self.map_size)
+        Smarty.spawn_initial(self.scene, self.map_size)
 
         

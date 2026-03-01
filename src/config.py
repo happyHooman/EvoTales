@@ -96,6 +96,30 @@ HERBIVORE_CONFIG = {
     },
 }
 
+# Carnivore movement (same minimal behaviour as herbivore for now)
+CARNIVORE_CONFIG = {
+    "initial_count": 3,
+    "bounds_padding": 20,
+    "speed": 25,           # pixels per second
+    "turn_interval": 4.0,  # seconds between direction changes
+    "physics": {
+        "moment_of_inertia": PymunkPhysicsEngine.MOMENT_INF,
+        "damping": 0.9,
+    },
+}
+
+# Smarty movement (same minimal behaviour as herbivore for now)
+SMARTIE_CONFIG = {
+    "initial_count": 2,
+    "bounds_padding": 20,
+    "speed": 18,           # pixels per second
+    "turn_interval": 6.0,  # seconds between direction changes
+    "physics": {
+        "moment_of_inertia": PymunkPhysicsEngine.MOMENT_INF,
+        "damping": 0.9,
+    },
+}
+
 # Physics settings
 DEFAULT_DAMPING = .6
 GRAVITY = (0, 0)

@@ -113,10 +113,10 @@ class CameraMode(InputMode):
             return True
 
         if scroll_y > 0:
-            self.camera.apply_zoom("in")
+            self.camera.apply_zoom("out")
             return True
         if scroll_y < 0:
-            self.camera.apply_zoom("out")
+            self.camera.apply_zoom("in")
             return True
 
         return True
