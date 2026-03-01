@@ -10,9 +10,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-"""
-next steps:
-- fix sprite scaling
-- fix plants oevrlapping
-"""

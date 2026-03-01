@@ -1,4 +1,3 @@
-import random
 import arcade
 import pymunk
 from config import DEFAULT_DAMPING, GRAVITY, PLANT_CONFIG
@@ -10,8 +9,8 @@ TILE_SCALING = 1.0
 
 class EntityManager():
     """
-    Manages all entities in the simulation, extending arcade.Scene
-    to provide entity-specific functionality.
+    Provides scene, physics, map. Lifecycle handlers live on entities:
+    Plant.spawn(em, x, y), Herbivore.spawn(em), etc.
     """
     def __init__(self):
         layer_options = {
@@ -55,37 +54,12 @@ class EntityManager():
             if dx * dx + dy * dy < min_spacing_sq:
                 return False
 
-        self.add_plant(seed_x, seed_y, growth_level=growth_level)
+        Plant.spawn(self, seed_x, seed_y, growth_level=growth_level)
         return True
 
-    def add_entity(self, entity, layer_name: str):
-        """Add an entity to a specific layer"""
-        self.scene.add_sprite(layer_name, entity)
-        # Add to physics engine if the entity should have physics
-        if hasattr(entity, 'use_physics') and entity.use_physics:
-            self.scene.physics_engine.add_sprite(entity)
-
-    def add_plant(self, x: float | None = None, y: float | None = None, *args, **kwargs):
-        plant_x = x if x is not None else self.map_size[0] / 2
-        plant_y = y if y is not None else self.map_size[1] / 2
-        plant = Plant(plant_x, plant_y, entity_manager=self, *args, **kwargs)
-        self.scene.add_sprite("plants", plant)
-        self.scene.physics_engine.add_sprite(
-            plant,
-            collision_type="plant",
-            body_type=arcade.PymunkPhysicsEngine.STATIC
-        )
-
-    def add_herbivore(self, x: float | None = None, y: float | None = None, *args, **kwargs):
-        herbivore_x = x if x is not None else self.map_size[0] / 2
-        herbivore_y = y if y is not None else self.map_size[1] / 2
-        herbivore = Herbivore(herbivore_x, herbivore_y, entity_manager=self, *args, **kwargs)
-        self.scene.add_sprite("herbivores", herbivore)
-        self.scene.physics_engine.add_sprite(herbivore)
-
     def update(self, delta_time: float = 1/60):
-        """Update all entities and physics"""
-        self.scene.update(delta_time)
+        """Update all entities and physics. Skip static ground layer."""
+        self.scene.update(delta_time, names=["plants", "herbivores"])
         self.scene.physics_engine.step()
 
     def get_map_size(self):
@@ -93,6 +67,6 @@ class EntityManager():
     
     def spawn_initial_population(self):
         Plant.spawn_initial(self)
-        self.add_herbivore()
+        Herbivore.spawn(self)
 
         

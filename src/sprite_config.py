@@ -1,6 +1,11 @@
 """
 Configuration for sprites and sprite sheets.
 """
+import math
+
+# Sprite art faces down. body.angle = 0 means right. Offset so sprite matches velocity.
+# Shared by herbivore, carnivore, smartie.
+SPRITE_ANGLE_OFFSET = math.pi / 2
 
 # Sprite sheet paths
 SPRITE_SHEETS = {

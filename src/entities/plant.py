@@ -6,6 +6,16 @@ from sprite_manager import sprite_manager
 
 
 class Plant(Entity):
+    layer_name = "plants"
+
+    @classmethod
+    def spawn(cls, entity_manager, x: float | None = None, y: float | None = None, *, growth_level: int = 1):
+        """Handler: create and register a plant at (x, y). Defaults to map center."""
+        map_w, map_h = entity_manager.map_size
+        cx = x if x is not None else map_w / 2
+        cy = y if y is not None else map_h / 2
+        return cls(cx, cy, entity_manager, growth_level=growth_level)
+
     @staticmethod
     def spawn_initial(entity_manager):
         padding = PLANT_CONFIG["bounds_padding"]
@@ -40,6 +50,7 @@ class Plant(Entity):
 
         self.growth_level = growth_level
         self.full_grown = self.growth_level >= self.config["max_growth_level"]
+        self._register()
 
     def set_growth_level(self, new_growth_level: int):
         self.full_grown = new_growth_level >= self.config["max_growth_level"]

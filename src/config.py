@@ -1,3 +1,5 @@
+import arcade
+
 # Window settings (visible area)
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
@@ -21,9 +23,9 @@ CAMERA_SETTINGS = {
 # Plant configuration
 PLANT_CONFIG = {
     "initial_count": 100,
-    "min_spacing": 50,
-    "bounds_padding": 50,
-    "seed_min_distance": 40,
+    "min_spacing": 30,
+    "bounds_padding": 20,
+    "seed_min_distance": 50,
     "seed_range": 500,
     "max_growth_level": 4,
     "max_growth_timer": 10,
@@ -39,7 +41,11 @@ PLANT_CONFIG = {
         "max_fails": 5,
         "max_successes": 3,
     },
-    "provided_energy": [10, 20, 30, 50]
+    "provided_energy": [10, 20, 30, 50],
+    "physics": {
+        "collision_type": "plant",
+        "body_type": arcade.PymunkPhysicsEngine.STATIC,
+    },
 }
 
 # Walking creature configuration
@@ -75,6 +81,16 @@ WALKING_CREATURE_CONFIG = {
         "reproduction_energy_threshold": 180,
         "reproduction_delay": 6.0,
         "energy_cost_reproduction": 35,
+    },
+}
+
+# Herbivore movement (minimal: constant speed, turn periodically)
+HERBIVORE_CONFIG = {
+    "speed": 20,           # pixels per second
+    "turn_interval": 5.0,  # seconds between direction changes
+    "physics": {
+        "moment_of_inertia": arcade.PymunkPhysicsEngine.MOMENT_INF,
+        "damping": 0.9,
     },
 }
 
