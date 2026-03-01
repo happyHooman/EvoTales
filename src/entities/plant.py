@@ -1,5 +1,6 @@
 import math
 import random
+import pymunk
 from entities.entity import Entity
 from config import PLANT_CONFIG
 from sprite_manager import sprite_manager
@@ -9,33 +10,63 @@ class Plant(Entity):
     layer_name = "plants"
 
     @classmethod
-    def spawn(cls, entity_manager, x: float | None = None, y: float | None = None, *, growth_level: int = 1):
+    def spawn(cls, scene, map_size, x: float | None = None, y: float | None = None, *, growth_level: int = 1):
         """Handler: create and register a plant at (x, y). Defaults to map center."""
-        map_w, map_h = entity_manager.map_size
+        map_w, map_h = map_size
         cx = x if x is not None else map_w / 2
         cy = y if y is not None else map_h / 2
-        return cls(cx, cy, entity_manager, growth_level=growth_level)
+        return cls(cx, cy, scene, map_size, growth_level=growth_level)
+
+    @classmethod
+    def _try_spawn(cls, scene, map_size, seed_x: float, seed_y: float, *, growth_level: int = 1) -> bool:
+        """Bounds check, spacing check, then spawn. Returns True if spawned."""
+        map_width, map_height = map_size
+        padding = PLANT_CONFIG["bounds_padding"]
+        min_spacing = PLANT_CONFIG["min_spacing"]
+        min_spacing_sq = min_spacing * min_spacing
+
+        if not (padding <= seed_x <= map_width - padding and padding <= seed_y <= map_height - padding):
+            return False
+
+        query_bb = pymunk.BB(
+            seed_x - min_spacing,
+            seed_y - min_spacing,
+            seed_x + min_spacing,
+            seed_y + min_spacing,
+        )
+        for shape in scene.physics_engine.space.bb_query(query_bb, pymunk.ShapeFilter()):
+            sprite = scene.physics_engine.get_sprite_for_shape(shape)
+            if not isinstance(sprite, Plant):
+                continue
+            dx = sprite.center_x - seed_x
+            dy = sprite.center_y - seed_y
+            if dx * dx + dy * dy < min_spacing_sq:
+                return False
+
+        cls.spawn(scene, map_size, seed_x, seed_y, growth_level=growth_level)
+        return True
 
     @staticmethod
-    def spawn_initial(entity_manager):
+    def spawn_initial(scene, map_size):
         padding = PLANT_CONFIG["bounds_padding"]
-        map_w, map_h = entity_manager.map_size
+        map_w, map_h = map_size
         for _ in range(PLANT_CONFIG["initial_count"]):
             growth_level = random.randint(1, PLANT_CONFIG["max_growth_level"])
             x = random.uniform(padding, map_w - padding)
             y = random.uniform(padding, map_h - padding)
-            entity_manager.handle_seed_drop(x, y, growth_level=growth_level)
+            Plant._try_spawn(scene, map_size, x, y, growth_level=growth_level)
 
-    def __init__(self, x, y, entity_manager, growth_level=1):
+    def __init__(self, x, y, scene, map_size, growth_level=1):
         if growth_level < 1 or growth_level > PLANT_CONFIG["max_growth_level"]:
             raise ValueError(f"Invalid growth level: {growth_level}. Must be between 1 and {PLANT_CONFIG['max_growth_level']}")
-        if entity_manager is None:
-            raise ValueError("Entity manager is required for plant initialization")
-        
+        if scene is None:
+            raise ValueError("Scene is required for plant initialization")
+
         self.config = PLANT_CONFIG
         self.growth_timer = self.config["max_growth_timer"]
         self.reproduction_timer = self.config["reproduction_delay"]
-        self.entity_manager = entity_manager
+        self.scene = scene
+        self.map_size = map_size
         self.growth_textures = sprite_manager.get_texture(self.config["growth_textures"])
         self.reproduction_history = {
             "successes": 0,
@@ -50,7 +81,7 @@ class Plant(Entity):
 
         self.growth_level = growth_level
         self.full_grown = self.growth_level >= self.config["max_growth_level"]
-        self._register()
+        self._register(physics_params=self.config.get("physics", {}))
 
     def set_growth_level(self, new_growth_level: int):
         self.full_grown = new_growth_level >= self.config["max_growth_level"]
@@ -107,4 +138,4 @@ class Plant(Entity):
         distance = random.uniform(self.config["seed_min_distance"], self.config["seed_range"])
         seed_x = self.center_x + distance * math.cos(direction)
         seed_y = self.center_y + distance * math.sin(direction)
-        return self.entity_manager.handle_seed_drop(seed_x, seed_y)
+        return Plant._try_spawn(self.scene, self.map_size, seed_x, seed_y)

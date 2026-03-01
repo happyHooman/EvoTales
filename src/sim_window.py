@@ -6,7 +6,7 @@ from config import *
 from simulation.camera_controller import CameraController
 from typing import Optional
 from entities.entity_manager import EntityManager
-from input_controller import CameraMode, InputController, InputTargets
+from input_controller import CameraMode, InputController
 from sprite_manager import sprite_manager
 
 TILE_SCALING = 1.0
@@ -31,8 +31,7 @@ class SimulationWindow(arcade.Window):
         self.set_minimum_size(400, 300)
         self.camera_controller = CameraController(CAMERA_SETTINGS, self)
         self.input_controller = InputController(
-            InputTargets(camera=self.camera_controller),
-            default_mode=CameraMode(),
+            default_mode=CameraMode(self.camera_controller),
         )
         self.background_color = arcade.color.AMAZON
         self.entity_manager: Optional[EntityManager] = None

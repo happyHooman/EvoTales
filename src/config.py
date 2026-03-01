@@ -1,4 +1,4 @@
-import arcade
+from arcade import PymunkPhysicsEngine
 
 # Window settings (visible area)
 WINDOW_WIDTH = 800
@@ -44,7 +44,7 @@ PLANT_CONFIG = {
     "provided_energy": [10, 20, 30, 50],
     "physics": {
         "collision_type": "plant",
-        "body_type": arcade.PymunkPhysicsEngine.STATIC,
+        "body_type": PymunkPhysicsEngine.STATIC,
     },
 }
 
@@ -86,10 +86,12 @@ WALKING_CREATURE_CONFIG = {
 
 # Herbivore movement (minimal: constant speed, turn periodically)
 HERBIVORE_CONFIG = {
+    "initial_count": 5,
+    "bounds_padding": 20,
     "speed": 20,           # pixels per second
     "turn_interval": 5.0,  # seconds between direction changes
     "physics": {
-        "moment_of_inertia": arcade.PymunkPhysicsEngine.MOMENT_INF,
+        "moment_of_inertia": PymunkPhysicsEngine.MOMENT_INF,
         "damping": 0.9,
     },
 }
