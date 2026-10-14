@@ -33,3 +33,8 @@ SPRITE_CONFIGS = {
     }
 }
 
+# Sprites made from another sprite by rotating its hue (placeholder art until real art exists).
+# name: (source sprite, hue shift in degrees, scale)
+DERIVED_SPRITES = {
+    "omnivore": ("herbivore", -80, 0.22),
+}

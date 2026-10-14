@@ -1,24 +1,32 @@
 import os
 import platform
+import subprocess
 import sys
 import time
-import arcade
-from config import *
-from simulation.camera_controller import CameraController
 from typing import Optional
+
+import arcade
+from arcade.gui import UIAnchorLayout, UIBoxLayout, UIFlatButton, UIManager
+
+import settings
+from config import CAMERA_SETTINGS, SCREEN_TITLE, WINDOW_HEIGHT, WINDOW_WIDTH
 from entities.entity_manager import EntityManager
 from input_controller import CameraMode, InputController
+from simulation.camera_controller import CameraController
 from sprite_manager import sprite_manager
 
-HUD_REFRESH = 0.5  # seconds between HUD text updates
+HUD_REFRESH = 0.5       # seconds between HUD text updates
+SETTINGS_POLL = 0.5     # seconds between checks of settings.json
+SETTINGS_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings_window.py")
+LAYERS = ("plants", "herbivores", "omnivores", "carnivores", "smarties")
+
 
 class SimulationWindow(arcade.Window):
     """
     Main application class for the simulation.
     """
 
-    def __init__(self):
-        # Initialize the parent class with window properties
+    def __init__(self, open_settings: bool = True):
         super().__init__(
             WINDOW_WIDTH,
             WINDOW_HEIGHT,
@@ -35,6 +43,7 @@ class SimulationWindow(arcade.Window):
         )
         self.background_color = arcade.color.AMAZON
         self.entity_manager: Optional[EntityManager] = None
+        self.paused = False
         # Screen-space camera and cached Text object for the HUD (arcade.Text is far
         # cheaper than draw_text, which rebuilds glyphs every frame)
         self.hud_camera = arcade.Camera2D()
@@ -43,13 +52,63 @@ class SimulationWindow(arcade.Window):
         self._frames = 0
         self._fps_clock = time.perf_counter()
 
+        self.settings_watcher = settings.SettingsWatcher()
+        self._settings_timer = SETTINGS_POLL
+        self._settings_process: Optional[subprocess.Popen] = None
+        self._build_toolbar()
+        if open_settings:
+            self.open_settings()
+
+    def _build_toolbar(self):
+        self.ui = UIManager(self)
+        self.ui.enable()
+        bar = UIBoxLayout(vertical=False, space_between=6)
+        for text, callback in (("Restart", self.restart), ("Pause", self.toggle_pause), ("Settings", self.open_settings)):
+            button = UIFlatButton(text=text, width=96, height=30)
+            button.set_handler("on_click", lambda event, cb=callback: cb())
+            bar.add(button)
+            if text == "Pause":
+                self.pause_button = button
+        anchor = UIAnchorLayout()
+        anchor.add(bar, anchor_x="right", anchor_y="top", align_x=-8, align_y=-8)
+        self.ui.add(anchor)
+
     def setup(self):
-        """Set up the game environment. Call this function to restart the game."""
+        """Build a fresh world with the current settings. Also used by Restart."""
         sprite_manager.load_all_sprite_sheets()
+        settings.apply(settings.load())
         self.entity_manager = EntityManager()
         map_width, map_height = self.entity_manager.get_map_size()
         self.camera_controller.setup(map_width, map_height)
         self.entity_manager.spawn_initial_population()
+        self._refresh_hud()
+
+    # ----------------------------------------------------------------- toolbar
+
+    def restart(self):
+        self.setup()
+
+    def toggle_pause(self):
+        self.paused = not self.paused
+        self.pause_button.text = "Resume" if self.paused else "Pause"
+
+    def open_settings(self):
+        """Open the settings window (a separate process) unless it's already open."""
+        if self._settings_process is not None and self._settings_process.poll() is None:
+            return
+        self._settings_process = subprocess.Popen([sys.executable, SETTINGS_SCRIPT])
+
+    def _poll_settings(self):
+        data, restart = self.settings_watcher.poll()
+        if data is None:
+            return
+        if restart:
+            self.restart()
+            return
+        settings.apply(data)
+        self.entity_manager.refresh_food_chain()
+
+    # ------------------------------------------------------------------ events
 
     def on_resize(self, width: int, height: int):
         """Handle window resizing events."""
@@ -64,6 +123,7 @@ class SimulationWindow(arcade.Window):
         self.entity_manager.scene.draw()
         self.hud_camera.use()
         self.hud_text.draw()
+        self.ui.draw()
         self._frames += 1
 
     def on_mouse_drag(self, x: int, y: int, dx: int, dy: int, buttons: int, modifiers: int):
@@ -85,7 +145,12 @@ class SimulationWindow(arcade.Window):
     def on_update(self, delta_time):
         """Update game logic."""
         self.input_controller.update(delta_time)
-        self.entity_manager.update(delta_time)
+        self._settings_timer -= delta_time
+        if self._settings_timer <= 0:
+            self._settings_timer = SETTINGS_POLL
+            self._poll_settings()
+        if not self.paused:
+            self.entity_manager.update(delta_time)
         self._hud_timer -= delta_time
         if self._hud_timer <= 0:
             self._hud_timer = HUD_REFRESH
@@ -93,17 +158,18 @@ class SimulationWindow(arcade.Window):
 
     def _refresh_hud(self):
         em = self.entity_manager
-        counts = "  ".join(f"{name}: {em.population(name)}"
-                           for name in ("plants", "herbivores", "carnivores", "smarties"))
+        counts = "  ".join(f"{name}: {em.population(name)}" for name in LAYERS)
         now = time.perf_counter()
         fps = self._frames / max(now - self._fps_clock, 1e-6)
         self._frames, self._fps_clock = 0, now
-        self.hud_text.text = f"{counts}  |  {fps:.0f} fps"
+        paused = "  |  paused" if self.paused else ""
+        self.hud_text.text = f"{counts}  |  {fps:.0f} fps{paused}"
 
     def on_close(self):
         """Handle window close events for a graceful shutdown."""
+        if self._settings_process is not None and self._settings_process.poll() is None:
+            self._settings_process.terminate()
         arcade.close_window()
         if sys.platform == 'darwin' or platform.system() == 'Darwin':
-            import time
             time.sleep(0.1)
             os._exit(0)

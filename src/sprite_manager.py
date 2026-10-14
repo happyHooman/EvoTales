@@ -1,7 +1,9 @@
 import arcade
 from arcade.types.rect import LBWH, XYWH
 from typing import Dict, Tuple, Optional
-from sprite_config import SPRITE_CONFIGS, SPRITE_SHEETS
+import numpy as np
+from PIL import Image
+from sprite_config import DERIVED_SPRITES, SPRITE_CONFIGS, SPRITE_SHEETS
 
 SPRITE_SCALE = 1.0
 
@@ -183,6 +185,9 @@ class SpriteManager:
             A list of arcade.Texture objects if a list of names was given,
             Or None if any sprite name is not found or an error occurs.
         """
+        if isinstance(sprite_name_or_list, str) and sprite_name_or_list in DERIVED_SPRITES:
+            return self._derived_texture(sprite_name_or_list, y_up)
+
         if isinstance(sprite_name_or_list, str):
             # Handle single sprite name
             sprite_name = sprite_name_or_list
@@ -220,6 +225,26 @@ class SpriteManager:
         else:
             print(f"Warning: Invalid type for sprite_name_or_list. Expected str or list, got {type(sprite_name_or_list)}.")
             return None
+
+    def _derived_texture(self, name: str, y_up: bool = True) -> Optional[arcade.Texture]:
+        """Build (once) a texture by hue-rotating another sprite."""
+        cache = self.__dict__.setdefault("_derived_cache", {})
+        if name in cache:
+            return cache[name]
+        source_name, hue_shift, scale = DERIVED_SPRITES[name]
+        source = self.get_texture(source_name, y_up)
+        if source is None:
+            return None
+        rgba = source.image.convert("RGBA")
+        alpha = rgba.getchannel("A")
+        hsv = np.array(rgba.convert("RGB").convert("HSV"), dtype=np.int16)
+        hsv[..., 0] = (hsv[..., 0] + round(hue_shift * 255 / 360)) % 256
+        shifted = Image.fromarray(hsv.astype(np.uint8), "HSV").convert("RGB")
+        shifted.putalpha(alpha)
+        texture = arcade.Texture(shifted, hash=f"derived-{name}")
+        texture.properties["scale"] = scale
+        cache[name] = texture
+        return texture
 
 
 sprite_manager = SpriteManager()

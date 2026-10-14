@@ -9,3 +9,7 @@
 .venv/
 .DS_Store
 uv.lock
+settings.json
+settings.json.tmp
+.sim.log
+.sim.pid

@@ -52,6 +52,10 @@ PLANT_CONFIG = {
 # Creature configuration.
 # CREATURE_DEFAULTS holds shared values; each species dict overrides what it needs
 # (merged in Creature.__init_subclass__). Rates are per second unless noted.
+# Energy is spent on being alive, walking, running and reproducing. Running is
+# run_speed_multiplier times faster than walking and costs run_energy_multiplier
+# times the walking energy. Relaxing creatures drift very slowly and only pay
+# the cost of being alive.
 _CREATURE_PHYSICS = {
     "moment_of_inertia": PymunkPhysicsEngine.MOMENT_INF,
     "damping": 0.9,
@@ -62,79 +66,86 @@ CREATURE_DEFAULTS = {
     "max_population": 30,
     "bounds_padding": 40,
     # Movement
-    "wander_speed": 25,        # pixels per second while wandering
-    "run_speed": 60,           # pixels per second while chasing / fleeing
-    "turn_rate": 3.0,          # radians per second (smooth turning)
-    "wander_turn_interval": 4.0,  # seconds between random heading changes
-    "wall_probe_distance": 28,  # how far ahead to look for water/walls
-    # Senses and brain
+    "walk_speed": 30,              # pixels per second
+    "run_speed_multiplier": 1.5,   # running is 50% faster...
+    "run_energy_multiplier": 2.0,  # ...but costs twice the walking energy
+    "relax_speed_ratio": 0.15,     # relaxing speed as a fraction of walk_speed
+    "turn_rate": 3.0,              # radians per second (smooth turning)
+    "wander_turn_interval": 4.0,   # seconds between random heading changes when roaming
+    "wall_probe_distance": 28,     # how far ahead to look for water/walls
+    # Senses
     "vision_range": 200,
-    "think_interval": 0.2,     # seconds between brain decisions (steering runs every frame)
+    "think_interval": 0.15,        # seconds between decisions (steering runs every frame)
     # Energy
-    "initial_energy": 60,
     "max_energy": 150,
-    "base_energy_drain": 0.5,  # per second, even when resting
-    "move_energy_factor": 0.0002,  # extra drain per second = factor * speed^2
-    "hungry_ratio": 0.7,       # looks for food below this fraction of max_energy
-    "eat_range": 10,           # extra reach beyond touching, in pixels
-    # Life cycle
-    "max_age": 300,            # seconds
+    "birth_energy": 45,            # born as adults with a little energy to find food
+    "alive_energy_cost": 0.3,      # per second, always
+    "walk_energy_cost": 0.5,       # per second while walking (running costs more, see above)
+    "hungry_ratio": 0.6,           # starts foraging below this fraction of max_energy...
+    "full_ratio": 0.95,            # ...and keeps foraging until this fraction
+    "relaxed_ratio": 0.85,         # relaxes above this fraction when not foraging
+    "eat_range": 10,               # extra reach beyond touching, in pixels
+    # Reproduction
+    "reproduction_interval": 30.0,  # seconds between births
     "reproduction_energy_threshold": 120,
-    "reproduction_cooldown": 20.0,
-    "energy_cost_reproduction": 50,
-    "child_energy": 40,
-    # Diet: layer names this creature eats, and layers it runs away from
+    "reproduction_energy_cost": 55,
+    # Food chain: layers this creature eats. Threats are derived from other species' diets.
     "diet": [],
-    "threats": [],
-    "nutrition": 50,           # energy a predator gains when eating this creature
+    "nutrition": 60,               # energy a predator gains from eating this creature
+    "corpse_duration": 20.0,       # seconds a dead body stays around and can still be eaten
+    "tint": [255, 255, 255],       # sprite color multiplier
     "physics": _CREATURE_PHYSICS,
 }
 
 HERBIVORE_CONFIG = {
-    "initial_count": 12,
+    "initial_count": 15,
     "max_population": 60,
-    "wander_speed": 25,
-    "run_speed": 65,
-    "turn_rate": 3.0,
-    "vision_range": 200,
-    "max_age": 240,
-    "reproduction_energy_threshold": 110,
+    "walk_speed": 30,              # runs at 45
     "diet": ["plants"],
-    "threats": ["carnivores"],
-    "nutrition": 70,
+    "nutrition": 80,
+}
+
+OMNIVORE_CONFIG = {
+    "initial_count": 6,
+    "max_population": 25,
+    "walk_speed": 36,              # runs at 54, faster than herbivores
+    "vision_range": 220,
+    "max_energy": 180,
+    "birth_energy": 55,
+    "alive_energy_cost": 0.35,
+    "walk_energy_cost": 0.55,
+    "reproduction_interval": 35.0,
+    "reproduction_energy_threshold": 145,
+    "reproduction_energy_cost": 65,
+    "diet": ["plants", "herbivores"],  # herbivores (nutrition 80) beat any plant (max 50)
+    "nutrition": 100,
 }
 
 CARNIVORE_CONFIG = {
-    "initial_count": 3,
+    "initial_count": 4,
     "max_population": 12,
-    "wander_speed": 30,
-    "run_speed": 75,
+    "walk_speed": 44,              # runs at 66, faster than omnivores and herbivores
     "turn_rate": 3.5,
-    "vision_range": 250,
-    "initial_energy": 100,
-    "max_energy": 200,
-    "base_energy_drain": 0.7,
-    "max_age": 360,
-    "reproduction_energy_threshold": 170,
-    "reproduction_cooldown": 30.0,
-    "energy_cost_reproduction": 80,
-    "child_energy": 70,
-    "diet": ["herbivores", "smarties"],
+    "vision_range": 260,
+    "max_energy": 220,
+    "birth_energy": 70,
+    "alive_energy_cost": 0.4,
+    "walk_energy_cost": 0.6,
+    "reproduction_interval": 40.0,
+    "reproduction_energy_threshold": 180,
+    "reproduction_energy_cost": 80,
+    "diet": ["herbivores", "omnivores"],
     "nutrition": 90,
 }
 
 SMARTIE_CONFIG = {
     "initial_count": 4,
     "max_population": 20,
-    "wander_speed": 22,
-    "run_speed": 60,
+    "walk_speed": 30,
     "turn_rate": 2.5,
     "vision_range": 300,
-    "max_age": 420,
-    "reproduction_energy_threshold": 130,
-    "reproduction_cooldown": 25.0,
+    "reproduction_energy_threshold": 125,
     "diet": ["plants"],
-    "threats": ["carnivores"],
     "nutrition": 80,
 }
 

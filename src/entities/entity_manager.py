@@ -7,6 +7,7 @@ from arcade.types import LRBT
 from config import DEFAULT_DAMPING, GRAVITY
 from entities.plant import Plant
 from entities.herbivore import Herbivore
+from entities.omnivore import Omnivore
 from entities.carnivore import Carnivore
 from entities.smartie import Smarty
 
@@ -15,7 +16,7 @@ TILE_SCALING = 1.0
 # Ground tile ids creatures can walk on; every other ground tile (the pond and its
 # shoreline) is treated as water. Tiled gids, as stored in the map json.
 WALKABLE_GROUND_GIDS = {51}
-CREATURE_TYPES = (Herbivore, Carnivore, Smarty)
+CREATURE_TYPES = (Herbivore, Omnivore, Carnivore, Smarty)
 # Plants only need coarse timing (growth takes seconds), so tick them a few times a second
 PLANT_TICK = 0.25
 # Cap the physics/behaviour step so a slow frame doesn't teleport creatures through walls
@@ -51,8 +52,27 @@ class EntityManager():
             self.scene.add_sprite_list(creature_type.layer_name)
 
         self.stats: Counter[str] = Counter()
+        self._living: Counter[str] = Counter()
         self._removals: list = []
         self._plant_time = 0.0
+        Plant._pending_seeds = []  # a restart must not inherit seeds from the old world
+        self.refresh_food_chain()
+
+    def refresh_food_chain(self) -> None:
+        """Derive who hunts whom from the species diets. Call again after diets change."""
+        self._predators = {
+            prey.layer_name: [hunter.layer_name for hunter in CREATURE_TYPES
+                              if prey.layer_name in hunter.config["diet"]]
+            for prey in CREATURE_TYPES
+        }
+        self.warnings = []
+        speed = {c.layer_name: c.config["walk_speed"] * c.config["run_speed_multiplier"] for c in CREATURE_TYPES}
+        for prey, hunters in self._predators.items():
+            for hunter in hunters:
+                if speed[hunter] <= speed[prey]:
+                    self.warnings.append(f"{hunter} can't outrun {prey} ({speed[hunter]:.0f} vs {speed[prey]:.0f} px/s)")
+        for warning in self.warnings:
+            print("Warning:", warning)
 
     def update(self, delta_time: float = 1/60):
         """Update plants (coarse tick), creatures, then physics."""
@@ -84,10 +104,24 @@ class EntityManager():
     # ------------------------------------------------------- world services
 
     def population(self, layer_name: str) -> int:
-        return len(self.scene[layer_name])
+        """Living members of a layer (corpses don't count)."""
+        if layer_name == "plants":
+            return len(self.scene["plants"])
+        return self._living[layer_name]
 
-    def nearby(self, layer_name: str, x: float, y: float, radius: float) -> list[tuple]:
-        """Living entities in a layer within radius of (x, y), as (entity, distance) pairs."""
+    def predators_of(self, layer_name: str) -> list[str]:
+        return self._predators.get(layer_name, [])
+
+    def on_birth(self, creature) -> None:
+        self._living[creature.layer_name] += 1
+
+    def on_death(self, creature) -> None:
+        self._living[creature.layer_name] -= 1
+
+    def nearby(self, layer_name: str, x: float, y: float, radius: float,
+               include_corpses: bool = False) -> list[tuple]:
+        """Entities in a layer within radius of (x, y), as (entity, distance) pairs.
+        Living ones only, unless include_corpses."""
         sprite_list = self.scene[layer_name]
         hash_ = sprite_list.spatial_hash
         candidates = (hash_.get_sprites_near_rect(LRBT(x - radius, x + radius, y - radius, y + radius))
@@ -95,7 +129,7 @@ class EntityManager():
         r2 = radius * radius
         found = []
         for e in candidates:
-            if not e.alive:
+            if e.removed or not (e.alive or include_corpses):
                 continue
             dx = e.center_x - x
             dy = e.center_y - y
