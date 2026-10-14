@@ -94,6 +94,8 @@ class Creature(Entity):
         self.running = False
         self.relaxing = False
         self.target = None  # food currently being approached
+        self.avoid_offset = 0.0  # heading tweak to pass a creature we'd otherwise bump into
+        self.flee_away = None    # straight-away heading while fleeing; dodges never cross 90 deg from it
 
         self.brain = brain or Instinct()
         self.intent = Intent("wander")
@@ -101,7 +103,6 @@ class Creature(Entity):
         self._register(physics_params=cfg["physics"])
         self._body = self.scene.physics_engine.get_physics_object(self).body
         self.world.on_birth(self)
-        self._update_tint()
 
     # ------------------------------------------------------------------ loop
 
@@ -135,7 +136,7 @@ class Creature(Entity):
             self.intent = self.brain.decide(self.observe())
             if self.intent.action != "flee":
                 self._check_walls()
-            self._update_tint()
+            self._plan_avoidance()
 
         self.act(self.intent, delta_time)
         self._steer(delta_time)
@@ -176,7 +177,7 @@ class Creature(Entity):
             for radius in (vision / 3, vision):
                 found = [Percept(e, layer, d, is_corpse=not e.alive)
                          for e, d in world.nearby(layer, x, y, radius, include_corpses=True)
-                         if e is not self and getattr(e, "edible", True)]
+                         if e is not self and getattr(e, "edible", True) and not self._claimed_by_other(e)]
                 if found:
                     break
             food.extend(found)
@@ -255,6 +256,8 @@ class Creature(Entity):
             self.intent = Intent("wander")
             return
         self.target = target
+        if not (isinstance(target, Creature) and target.alive):
+            target.claimed_by = self  # still food (plant, corpse): others look elsewhere
         reach = self.radius + target.width / 2 + self.config["eat_range"]
         dx = target.center_x - self.center_x
         dy = target.center_y - self.center_y
@@ -282,6 +285,7 @@ class Creature(Entity):
             ax += dx / d2
             ay += dy / d2
         away = math.atan2(ay, ax)
+        self.flee_away = away
         self.detour_timer = 0.0
         heading = self._free_heading(away, FLEE_OFFSETS)
         self.desired_heading = away if heading is None else heading
@@ -337,6 +341,11 @@ class Creature(Entity):
 
     # --------------------------------------------------------------- helpers
 
+    def _claimed_by_other(self, food) -> bool:
+        """Plants and corpses another creature is already walking to are left to it."""
+        other = getattr(food, "claimed_by", None)
+        return other is not None and other is not self and other.alive and other.target is food
+
     def _face(self, x: float, y: float) -> None:
         if self.detour_timer <= 0:
             self.desired_heading = math.atan2(y - self.center_y, x - self.center_x)
@@ -365,16 +374,55 @@ class Creature(Entity):
     def _steer(self, delta_time: float) -> None:
         if self.detour_timer > 0:
             self.detour_timer -= delta_time
-        self.heading = _angle_toward(self.heading, self.desired_heading, self.config["turn_rate"] * delta_time)
+        goal = self.desired_heading + self.avoid_offset
+        if self.intent.action == "flee" and self.flee_away is not None:
+            # A dodge while fleeing must never point back toward the predators
+            off = (goal - self.flee_away + math.pi) % TWO_PI - math.pi
+            goal = self.flee_away + max(-HALF_PI, min(HALF_PI, off))
+        self.heading = _angle_toward(self.heading, goal, self.config["turn_rate"] * delta_time)
         self.heading %= TWO_PI
         self.desired_heading %= TWO_PI
         body = self._body
         body.velocity = (self.speed * math.cos(self.heading), self.speed * math.sin(self.heading))
         body.angle = self.heading + SPRITE_ANGLE_OFFSET
 
-    def _update_tint(self) -> None:
-        """Species tint, fading toward dark as energy runs low so hunger is visible."""
-        ratio = max(0.0, min(1.0, self.energy / self.config["max_energy"]))
-        f = 0.45 + 0.55 * ratio
-        r, g, b = self.config["tint"]
-        self.color = (int(r * f), int(g * f), int(b * f), 255)
+    def _plan_avoidance(self) -> None:
+        """
+        Trail planning: predict where nearby creatures will be over the next
+        avoid_horizon seconds (constant velocity) and, if we'd touch one, veer to
+        the side it isn't on. The soonest predicted contact wins. Chases are left
+        alone: a hunter doesn't dodge its prey, and prey doesn't dodge its hunter.
+        """
+        self.avoid_offset = 0.0
+        cfg = self.config
+        horizon = cfg["avoid_horizon"]
+        if horizon <= 0 or self.speed <= 0:
+            return
+        x, y = self.center_x, self.center_y
+        vx, vy = self.speed * math.cos(self.heading), self.speed * math.sin(self.heading)
+        look = horizon * (self.speed + 70) + 2 * self.radius
+        soonest = horizon
+        hit = None
+        for layer in self.world.creature_layers:
+            for other, _ in self.world.nearby(layer, x, y, look):
+                if other is self or other is self.target or other.target is self:
+                    continue
+                ox, oy = other.center_x - x, other.center_y - y
+                ovx = other.speed * math.cos(other.heading) - vx
+                ovy = other.speed * math.sin(other.heading) - vy
+                closing = ovx * ovx + ovy * ovy
+                if closing < 1e-6:
+                    continue
+                t = -(ox * ovx + oy * ovy) / closing  # time of closest approach
+                if t <= 0 or t >= soonest:
+                    continue
+                cx, cy = ox + ovx * t, oy + ovy * t      # where it will be relative to us
+                clearance = self.radius + other.radius + cfg["avoid_margin"]
+                if cx * cx + cy * cy < clearance * clearance:
+                    soonest, hit = t, (cx, cy)
+        if hit is None:
+            return
+        # Which side of our path will it be on? Turn the other way (head-on: pass on the right).
+        side = math.cos(self.heading) * hit[1] - math.sin(self.heading) * hit[0]
+        urgency = 1 - soonest / horizon
+        self.avoid_offset = -math.copysign(cfg["avoid_turn"] * (0.4 + 0.6 * urgency), side or 1.0)

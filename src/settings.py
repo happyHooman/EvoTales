@@ -31,7 +31,7 @@ PLANT_KEYS = [
 CREATURE_KEYS = [
     "initial_count", "max_population",
     "walk_speed", "run_speed_multiplier", "run_energy_multiplier", "relax_speed_ratio",
-    "turn_rate", "vision_range",
+    "turn_rate", "vision_range", "avoid_horizon", "avoid_margin",
     "max_energy", "birth_energy", "alive_energy_cost", "walk_energy_cost",
     "hungry_ratio", "full_ratio", "relaxed_ratio",
     "reproduction_interval", "reproduction_energy_threshold", "reproduction_energy_cost",

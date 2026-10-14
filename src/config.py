@@ -73,6 +73,9 @@ CREATURE_DEFAULTS = {
     "turn_rate": 3.0,              # radians per second (smooth turning)
     "wander_turn_interval": 4.0,   # seconds between random heading changes when roaming
     "wall_probe_distance": 28,     # how far ahead to look for water/walls
+    "avoid_horizon": 1.5,          # seconds of look-ahead for other creatures' paths (0 = off)
+    "avoid_margin": 6,             # extra clearance wanted when passing, in pixels
+    "avoid_turn": 0.9,             # max heading change (radians) to pass someone
     # Senses
     "vision_range": 200,
     "think_interval": 0.15,        # seconds between decisions (steering runs every frame)
@@ -98,7 +101,6 @@ CREATURE_DEFAULTS = {
     "diet": [],
     "nutrition": 60,               # energy a predator gains from eating this creature
     "corpse_duration": 20.0,       # seconds a dead body stays around and can still be eaten
-    "tint": [255, 255, 255],       # sprite color multiplier
     "physics": _CREATURE_PHYSICS,
 }
 

@@ -50,6 +50,7 @@ class EntityManager():
         for creature_type in CREATURE_TYPES:
             self.scene.add_sprite_list(creature_type.layer_name)
 
+        self.creature_layers = [c.layer_name for c in CREATURE_TYPES]
         self.stats: Counter[str] = Counter()
         self._living: Counter[str] = Counter()
         self._removals: list = []
