@@ -5,9 +5,10 @@ Brains decide what a creature does; the creature's body carries it out.
     intent = brain.decide(observation)      # which action ("tool") to use
     creature.act(intent)                    # body executes it every frame
 
-Every species runs on Instinct, a fixed deterministic rule set. Only smarties
-may be given another Brain (for example a small language model that reads the
-Observation and answers with a tool call); everything else stays instinctive.
+Every species runs on Instinct, a fixed rule set whose only dice roll is how
+much hunger overrides fear. Only smarties may be given another Brain (for
+example a small language model that reads the Observation and answers with a
+tool call); everything else stays instinctive.
 """
 from __future__ import annotations
 
@@ -31,6 +32,7 @@ class Observation:
     energy: float
     energy_ratio: float
     foraging: bool            # hungry, and stays so until full
+    bold: bool                # hunger currently outweighs fear (a dice roll that grows with hunger)
     relaxed: bool             # well fed and not foraging
     can_reproduce: bool
     current_target: Any       # what the creature is currently heading for, if anything
@@ -55,10 +57,12 @@ class Brain:
 
 class Instinct(Brain):
     """
-    Deterministic behaviour shared by every species:
+    Rule-based behaviour shared by every species:
 
     1. Predators in sight: run away from any that is running or chasing me,
-       otherwise walk away. This holds even while relaxing.
+       otherwise walk away. This holds even while relaxing. Exception: a bold
+       forager (hungrier = more likely) ignores predators that aren't chasing
+       it and goes for food.
     2. Reproduce when the interval and energy allow it.
     3. Foraging (hungry until full): keep the current food target while it is
        in sight, otherwise go for the closest food. Run at moving prey, walk to
@@ -68,7 +72,9 @@ class Instinct(Brain):
     """
 
     def decide(self, obs: Observation) -> Intent:
-        if obs.threats:
+        hunger_wins = (obs.bold and obs.foraging and obs.food
+                       and not any(t.attacking for t in obs.threats))
+        if obs.threats and not hunger_wins:
             run = any(t.running or t.attacking for t in obs.threats)
             return Intent("flee", [t.entity for t in obs.threats], run=run, reason="predator in sight")
         if obs.can_reproduce:

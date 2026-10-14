@@ -85,6 +85,11 @@ CREATURE_DEFAULTS = {
     "full_ratio": 0.95,            # ...and keeps foraging until this fraction
     "relaxed_ratio": 0.85,         # relaxes above this fraction when not foraging
     "eat_range": 10,               # extra reach beyond touching, in pixels
+    # Hunger beats fear: a foraging creature may go for food with a predator in sight
+    # (unless that predator is chasing it). The chance grows from 0 at the hungry
+    # threshold to hunger_boldness at zero energy, re-rolled every boldness_interval s.
+    "hunger_boldness": 0.8,
+    "boldness_interval": 2.0,
     # Reproduction
     "reproduction_interval": 30.0,  # seconds between births
     "reproduction_energy_threshold": 120,
@@ -105,26 +110,10 @@ HERBIVORE_CONFIG = {
     "nutrition": 80,
 }
 
-OMNIVORE_CONFIG = {
-    "initial_count": 6,
-    "max_population": 25,
-    "walk_speed": 36,              # runs at 54, faster than herbivores
-    "vision_range": 220,
-    "max_energy": 180,
-    "birth_energy": 55,
-    "alive_energy_cost": 0.35,
-    "walk_energy_cost": 0.55,
-    "reproduction_interval": 35.0,
-    "reproduction_energy_threshold": 145,
-    "reproduction_energy_cost": 65,
-    "diet": ["plants", "herbivores"],  # herbivores (nutrition 80) beat any plant (max 50)
-    "nutrition": 100,
-}
-
 CARNIVORE_CONFIG = {
     "initial_count": 4,
     "max_population": 12,
-    "walk_speed": 44,              # runs at 66, faster than omnivores and herbivores
+    "walk_speed": 44,              # runs at 66, faster than smarties and herbivores
     "turn_rate": 3.5,
     "vision_range": 260,
     "max_energy": 220,
@@ -134,19 +123,27 @@ CARNIVORE_CONFIG = {
     "reproduction_interval": 40.0,
     "reproduction_energy_threshold": 180,
     "reproduction_energy_cost": 80,
-    "diet": ["herbivores", "omnivores"],
+    "diet": ["herbivores", "smarties"],
     "nutrition": 90,
 }
 
+# Smarties are the omnivores: plants and herbivores, hunted by carnivores.
+# They are the only species that may get a brain beyond instinct.
 SMARTIE_CONFIG = {
-    "initial_count": 4,
-    "max_population": 20,
-    "walk_speed": 30,
+    "initial_count": 6,
+    "max_population": 25,
+    "walk_speed": 36,              # runs at 54, faster than herbivores
     "turn_rate": 2.5,
-    "vision_range": 300,
-    "reproduction_energy_threshold": 125,
-    "diet": ["plants"],
-    "nutrition": 80,
+    "vision_range": 260,
+    "max_energy": 180,
+    "birth_energy": 55,
+    "alive_energy_cost": 0.35,
+    "walk_energy_cost": 0.55,
+    "reproduction_interval": 35.0,
+    "reproduction_energy_threshold": 145,
+    "reproduction_energy_cost": 65,
+    "diet": ["plants", "herbivores"],  # herbivores (nutrition 80) beat any plant (max 50)
+    "nutrition": 100,
 }
 
 # Physics settings

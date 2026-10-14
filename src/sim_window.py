@@ -20,7 +20,7 @@ from sprite_manager import sprite_manager
 HUD_REFRESH = 0.5       # seconds between HUD text updates
 SETTINGS_POLL = 0.5     # seconds between checks of settings.json
 SETTINGS_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings_window.py")
-LAYERS = ("plants", "herbivores", "omnivores", "carnivores", "smarties")
+LAYERS = ("plants", "herbivores", "smarties", "carnivores")
 
 
 class SimulationWindow(arcade.Window):

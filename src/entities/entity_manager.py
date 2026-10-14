@@ -7,7 +7,6 @@ from arcade.types import LRBT
 from config import DEFAULT_DAMPING, GRAVITY
 from entities.plant import Plant
 from entities.herbivore import Herbivore
-from entities.omnivore import Omnivore
 from entities.carnivore import Carnivore
 from entities.smartie import Smarty
 
@@ -16,7 +15,7 @@ TILE_SCALING = 1.0
 # Ground tile ids creatures can walk on; every other ground tile (the pond and its
 # shoreline) is treated as water. Tiled gids, as stored in the map json.
 WALKABLE_GROUND_GIDS = {51}
-CREATURE_TYPES = (Herbivore, Omnivore, Carnivore, Smarty)
+CREATURE_TYPES = (Herbivore, Smarty, Carnivore)
 # Plants only need coarse timing (growth takes seconds), so tick them a few times a second
 PLANT_TICK = 0.25
 # Cap the physics/behaviour step so a slow frame doesn't teleport creatures through walls

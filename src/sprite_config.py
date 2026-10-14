@@ -32,9 +32,3 @@ SPRITE_CONFIGS = {
         "smartie": (2 * s_width, 2 * s_height, s_width, s_height, SCALE),        # Smart creature
     }
 }
-
-# Sprites made from another sprite by rotating its hue (placeholder art until real art exists).
-# name: (source sprite, hue shift in degrees, scale)
-DERIVED_SPRITES = {
-    "omnivore": ("herbivore", -80, 0.22),
-}

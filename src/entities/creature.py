@@ -34,7 +34,7 @@ def _angle_toward(current: float, target: float, max_step: float) -> float:
 
 
 class Creature(Entity):
-    """Base for herbivores, omnivores, carnivores and smarties. Shared body logic."""
+    """Base for herbivores, smarties (omnivores) and carnivores. Shared body logic."""
 
     layer_name: str = ""
     texture_name: str = ""
@@ -85,6 +85,8 @@ class Creature(Entity):
         self.wander_timer = random.uniform(0, cfg["wander_turn_interval"])
         self.detour_timer = 0.0
         self.corpse_timer = 0.0
+        self.bold = False  # hunger currently outweighs fear of predators
+        self.boldness_timer = 0.0
 
         self.heading = random.uniform(0, TWO_PI)
         self.desired_heading = self.heading
@@ -122,6 +124,10 @@ class Creature(Entity):
             self.foraging = True
         elif ratio >= cfg["full_ratio"]:
             self.foraging = False
+        self.boldness_timer -= delta_time
+        if self.boldness_timer <= 0:
+            self.boldness_timer = cfg["boldness_interval"]
+            self.bold = self.foraging and random.random() < self.boldness_chance()
 
         self.think_timer -= delta_time
         if self.think_timer <= 0:
@@ -133,6 +139,12 @@ class Creature(Entity):
 
         self.act(self.intent, delta_time)
         self._steer(delta_time)
+
+    def boldness_chance(self) -> float:
+        """Chance that hunger beats fear: 0 at the hungry threshold, hunger_boldness when empty."""
+        cfg = self.config
+        hunger = 1 - self.energy / (cfg["max_energy"] * cfg["hungry_ratio"])
+        return cfg["hunger_boldness"] * max(0.0, min(1.0, hunger))
 
     def energy_rate(self) -> float:
         """Energy spent per second: being alive, plus moving (relaxing moves for free)."""
@@ -186,6 +198,7 @@ class Creature(Entity):
             energy=self.energy,
             energy_ratio=ratio,
             foraging=self.foraging,
+            bold=self.bold,
             relaxed=not self.foraging and ratio >= cfg["relaxed_ratio"],
             can_reproduce=self.can_reproduce(),
             current_target=self.target,

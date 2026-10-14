@@ -11,7 +11,6 @@ BAR_WIDTH, BAR_HEIGHT = 26, 4
 BAR_BG = (30, 30, 30, 200)
 FOV_COLORS = {
     "herbivores": (120, 255, 120),
-    "omnivores": (255, 190, 80),
     "carnivores": (255, 90, 70),
     "smarties": (170, 140, 255),
 }

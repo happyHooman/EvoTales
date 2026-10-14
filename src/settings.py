@@ -9,8 +9,7 @@ import copy
 import json
 import os
 
-from config import (CARNIVORE_CONFIG, CREATURE_DEFAULTS, HERBIVORE_CONFIG, OMNIVORE_CONFIG,
-                    PLANT_CONFIG, SMARTIE_CONFIG)
+from config import CARNIVORE_CONFIG, CREATURE_DEFAULTS, HERBIVORE_CONFIG, PLANT_CONFIG, SMARTIE_CONFIG
 
 SETTINGS_PATH = "settings.json"
 RESTART_KEY = "_restart"
@@ -20,9 +19,8 @@ DISPLAY_DEFAULTS = {"show_fov": False, "show_energy": False}
 SECTIONS = {
     "plants": PLANT_CONFIG,
     "herbivores": HERBIVORE_CONFIG,
-    "omnivores": OMNIVORE_CONFIG,
-    "carnivores": CARNIVORE_CONFIG,
     "smarties": SMARTIE_CONFIG,
+    "carnivores": CARNIVORE_CONFIG,
 }
 CREATURE_SECTIONS = [name for name in SECTIONS if name != "plants"]
 
@@ -37,6 +35,7 @@ CREATURE_KEYS = [
     "max_energy", "birth_energy", "alive_energy_cost", "walk_energy_cost",
     "hungry_ratio", "full_ratio", "relaxed_ratio",
     "reproduction_interval", "reproduction_energy_threshold", "reproduction_energy_cost",
+    "hunger_boldness", "boldness_interval",
     "nutrition", "corpse_duration", "diet",
 ]
 # Only take effect when the world is rebuilt

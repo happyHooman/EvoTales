@@ -17,7 +17,7 @@ import settings  # noqa: E402
 
 WIDTH, HEIGHT = 620, 860
 ROW_HEIGHT = 26
-FOOD_LAYERS = ["plants", "herbivores", "omnivores", "carnivores", "smarties"]
+FOOD_LAYERS = ["plants", "herbivores", "smarties", "carnivores"]
 LABELS = {
     "initial_count": "Initial count (restart)",
     "min_spacing": "Min spacing (restart)",
