@@ -1,55 +1,150 @@
+import json
+import random
+from collections import Counter
+
 import arcade
+from arcade.types import LRBT
 from config import DEFAULT_DAMPING, GRAVITY
 from entities.plant import Plant
 from entities.herbivore import Herbivore
 from entities.carnivore import Carnivore
 from entities.smartie import Smarty
 
+MAP_PATH = "assets/maps/uniform_map.json"
 TILE_SCALING = 1.0
+# Ground tile ids creatures can walk on; every other ground tile (the pond and its
+# shoreline) is treated as water. Tiled gids, as stored in the map json.
+WALKABLE_GROUND_GIDS = {51}
+CREATURE_TYPES = (Herbivore, Carnivore, Smarty)
+# Plants only need coarse timing (growth takes seconds), so tick them a few times a second
+PLANT_TICK = 0.25
+# Cap the physics/behaviour step so a slow frame doesn't teleport creatures through walls
+MAX_STEP = 1 / 20
 
 
 class EntityManager():
     """
-    Provides scene, physics, map. Lifecycle handlers live on entities:
-    Plant.spawn(scene, map_size, x, y), Herbivore.spawn(scene, map_size), etc.
+    The world: owns the scene, physics and map, and offers the services entities
+    use (spatial queries, wall checks, deferred removal). Lifecycle handlers live
+    on entities: Plant.spawn(world, x, y), Herbivore.spawn(world), etc.
     """
     def __init__(self):
-        layer_options = {
-            "ground": {"use_spatial_hash": True},
-            "walls": {"use_spatial_hash": True},
-        }
-        self.tile_map = arcade.load_tilemap(
-            "assets/maps/uniform_map.json",
-            scaling=TILE_SCALING,
-            layer_options=layer_options
-        )
+        self.tile_map = arcade.load_tilemap(MAP_PATH, scaling=TILE_SCALING)
         self.scene = arcade.Scene.from_tilemap(self.tile_map)
         self.scene.physics_engine = arcade.PymunkPhysicsEngine(damping=DEFAULT_DAMPING, gravity=GRAVITY)
-        self.map_size = self.tile_map.width * self.tile_map.tile_width, self.tile_map.height * self.tile_map.tile_height
+        self.map_size = self.get_map_size()
+        self._build_blocked_grid()
 
-        # Add walls as static physics bodies so creatures cannot pass through
-        self.scene.physics_engine.add_sprite_list(
-            self.scene["walls"],
-            friction=0.6,
-            body_type=arcade.PymunkPhysicsEngine.STATIC,
-        )
+        # Walls and water are static physics bodies so creatures cannot pass through
+        static = dict(friction=0.6, body_type=arcade.PymunkPhysicsEngine.STATIC)
+        self.scene.physics_engine.add_sprite_list(self.scene["walls"], **static)
+        water = arcade.SpriteList()  # physics only, not drawn (ground layer already shows it)
+        water.extend(s for s in self.scene["ground"] if self.is_blocked(s.center_x, s.center_y))
+        self.scene.physics_engine.add_sprite_list(water, **static)
 
-        # Plants layer (runtime, not from tilemap) - needed before spawn_initial
+        # Runtime layers (not from tilemap), created up front so they exist even when a
+        # species has no members. Plants are many and static, so they get a spatial hash.
+        # Creatures are few and always moving: re-hashing every move costs more than
+        # scanning the list, so they don't.
         self.scene.add_sprite_list("plants", use_spatial_hash=True)
+        for creature_type in CREATURE_TYPES:
+            self.scene.add_sprite_list(creature_type.layer_name)
+
+        self.stats: Counter[str] = Counter()
+        self._removals: list = []
+        self._plant_time = 0.0
 
     def update(self, delta_time: float = 1/60):
-        """Update all entities and physics. Skip static ground layer."""
-        self.scene.update(delta_time, names=["plants", "herbivores", "carnivores", "smarties"])
-        Plant.process_pending_seeds(self.scene, self.map_size)
-        self.scene.physics_engine.step()
+        """Update plants (coarse tick), creatures, then physics."""
+        delta_time = min(delta_time, MAX_STEP)
+
+        self._plant_time += delta_time
+        if self._plant_time >= PLANT_TICK:
+            for plant in self.scene["plants"]:
+                plant.update(self._plant_time)
+            self._plant_time = 0.0
+            Plant.process_pending_seeds(self)
+
+        for creature_type in CREATURE_TYPES:
+            # Copy: creatures may give birth during the pass
+            for creature in list(self.scene[creature_type.layer_name]):
+                creature.update(delta_time)
+
+        self._flush_removals()
+        self.scene.physics_engine.step(delta_time)
 
     def get_map_size(self):
         return self.tile_map.width * self.tile_map.tile_width, self.tile_map.height * self.tile_map.tile_height
-    
-    def spawn_initial_population(self):
-        Plant.spawn_initial(self.scene, self.map_size)
-        Herbivore.spawn_initial(self.scene, self.map_size)
-        Carnivore.spawn_initial(self.scene, self.map_size)
-        Smarty.spawn_initial(self.scene, self.map_size)
 
-        
+    def spawn_initial_population(self):
+        Plant.spawn_initial(self)
+        for creature_type in CREATURE_TYPES:
+            creature_type.spawn_initial(self)
+
+    # ------------------------------------------------------- world services
+
+    def population(self, layer_name: str) -> int:
+        return len(self.scene[layer_name])
+
+    def nearby(self, layer_name: str, x: float, y: float, radius: float) -> list[tuple]:
+        """Living entities in a layer within radius of (x, y), as (entity, distance) pairs."""
+        sprite_list = self.scene[layer_name]
+        hash_ = sprite_list.spatial_hash
+        candidates = (hash_.get_sprites_near_rect(LRBT(x - radius, x + radius, y - radius, y + radius))
+                      if hash_ is not None else sprite_list)
+        r2 = radius * radius
+        found = []
+        for e in candidates:
+            if not e.alive:
+                continue
+            dx = e.center_x - x
+            dy = e.center_y - y
+            d2 = dx * dx + dy * dy
+            if d2 <= r2:
+                found.append((e, d2 ** 0.5))
+        return found
+
+    def _build_blocked_grid(self) -> None:
+        """One byte per tile: 1 where a wall or water tile is. Rows run bottom-up like world y."""
+        with open(MAP_PATH) as f:
+            layers = {layer["name"]: layer["data"] for layer in json.load(f)["layers"]}
+        cols, rows = self.tile_map.width, self.tile_map.height
+        ground, walls = layers["ground"], layers["walls"]
+        self._tile_size = self.tile_map.tile_width * TILE_SCALING
+        self._grid_cols, self._grid_rows = cols, rows
+        self._blocked = bytearray(cols * rows)
+        for i in range(cols * rows):
+            if walls[i] or ground[i] not in WALKABLE_GROUND_GIDS:
+                row_from_top, col = divmod(i, cols)
+                self._blocked[(rows - 1 - row_from_top) * cols + col] = 1
+
+    def is_blocked(self, x: float, y: float) -> bool:
+        """True if (x, y) is off the map or on a wall/water tile. O(1) grid lookup."""
+        col = int(x // self._tile_size)
+        row = int(y // self._tile_size)
+        if not (0 <= col < self._grid_cols and 0 <= row < self._grid_rows):
+            return True
+        return self._blocked[row * self._grid_cols + col] == 1
+
+    def random_free_position(self, padding: float, tries: int = 50):
+        w, h = self.map_size
+        for _ in range(tries):
+            x = random.uniform(padding, w - padding)
+            y = random.uniform(padding, h - padding)
+            if not self.is_blocked(x, y):
+                return x, y
+        return None
+
+    def queue_removal(self, entity) -> None:
+        self._removals.append(entity)
+
+    def record(self, event: str) -> None:
+        """Count a life event (births, deaths by cause) for the HUD and debugging."""
+        self.stats[event] += 1
+
+    def _flush_removals(self) -> None:
+        if not self._removals:
+            return
+        for entity in self._removals:
+            entity._remove_now()
+        self._removals.clear()

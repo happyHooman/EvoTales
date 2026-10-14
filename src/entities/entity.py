@@ -7,7 +7,7 @@ class Entity(Sprite):
     layer_name: str = ""
     use_physics: bool = True
 
-    def __init__(self, texture, x, y, *args, **kwargs):
+    def __init__(self, texture, x, y, world, *args, **kwargs):
         super().__init__(
             texture,
             center_x=x,
@@ -16,6 +16,9 @@ class Entity(Sprite):
             *args,
             **kwargs,
         )
+        self.world = world
+        self.scene = world.scene
+        self.alive = True
 
     def _register(self, physics_params: dict | None = None) -> None:
         """Register self with scene and physics. Subclasses pass their own physics_params."""
@@ -26,9 +29,11 @@ class Entity(Sprite):
             self.scene.physics_engine.add_sprite(self, **physics_params)
 
     def despawn(self) -> None:
-        """Remove self from scene and physics. Requires scene on self."""
-        physics = self.scene.physics_engine
-        if self in physics.sprites:
-            physics.remove_sprite(self)
-        self.remove_from_sprite_lists()
+        """Mark dead and let the world remove it after the current update pass."""
+        if self.alive:
+            self.alive = False
+            self.world.queue_removal(self)
 
+    def _remove_now(self) -> None:
+        # Also detaches from the physics engine (arcade tracks it on the sprite)
+        self.remove_from_sprite_lists()

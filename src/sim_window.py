@@ -1,6 +1,7 @@
 import os
 import platform
 import sys
+import time
 import arcade
 from config import *
 from simulation.camera_controller import CameraController
@@ -9,8 +10,7 @@ from entities.entity_manager import EntityManager
 from input_controller import CameraMode, InputController
 from sprite_manager import sprite_manager
 
-TILE_SCALING = 1.0
-DEFAULT_DAMPING = .6
+HUD_REFRESH = 0.5  # seconds between HUD text updates
 
 class SimulationWindow(arcade.Window):
     """
@@ -35,6 +35,13 @@ class SimulationWindow(arcade.Window):
         )
         self.background_color = arcade.color.AMAZON
         self.entity_manager: Optional[EntityManager] = None
+        # Screen-space camera and cached Text object for the HUD (arcade.Text is far
+        # cheaper than draw_text, which rebuilds glyphs every frame)
+        self.hud_camera = arcade.Camera2D()
+        self.hud_text = arcade.Text("", 10, 10, arcade.color.WHITE, 12)
+        self._hud_timer = 0.0
+        self._frames = 0
+        self._fps_clock = time.perf_counter()
 
     def setup(self):
         """Set up the game environment. Call this function to restart the game."""
@@ -48,12 +55,16 @@ class SimulationWindow(arcade.Window):
         """Handle window resizing events."""
         super().on_resize(width, height)
         self.camera_controller.handle_resize(width, height)
+        self.hud_camera.match_window()
 
     def on_draw(self):
         """Render the screen."""
         self.clear()
         self.camera_controller.use()
         self.entity_manager.scene.draw()
+        self.hud_camera.use()
+        self.hud_text.draw()
+        self._frames += 1
 
     def on_mouse_drag(self, x: int, y: int, dx: int, dy: int, buttons: int, modifiers: int):
         """Handle mouse drag events for camera panning."""
@@ -75,6 +86,19 @@ class SimulationWindow(arcade.Window):
         """Update game logic."""
         self.input_controller.update(delta_time)
         self.entity_manager.update(delta_time)
+        self._hud_timer -= delta_time
+        if self._hud_timer <= 0:
+            self._hud_timer = HUD_REFRESH
+            self._refresh_hud()
+
+    def _refresh_hud(self):
+        em = self.entity_manager
+        counts = "  ".join(f"{name}: {em.population(name)}"
+                           for name in ("plants", "herbivores", "carnivores", "smarties"))
+        now = time.perf_counter()
+        fps = self._frames / max(now - self._fps_clock, 1e-6)
+        self._frames, self._fps_clock = 0, now
+        self.hud_text.text = f"{counts}  |  {fps:.0f} fps"
 
     def on_close(self):
         """Handle window close events for a graceful shutdown."""
@@ -83,12 +107,3 @@ class SimulationWindow(arcade.Window):
             import time
             time.sleep(0.1)
             os._exit(0)
-
-def main():
-    """Main function to run the simulation."""
-    window = SimulationWindow()
-    window.setup()
-    arcade.run()
-
-if __name__ == "__main__":
-    main()

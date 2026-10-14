@@ -12,17 +12,17 @@ class Plant(Entity):
     _pending_seeds: list = []  # List of (plant, seed_x, seed_y) for batch processing
 
     @classmethod
-    def spawn(cls, scene, map_size, x: float | None = None, y: float | None = None, *, growth_level: int = 1):
+    def spawn(cls, world, x: float | None = None, y: float | None = None, *, growth_level: int = 1):
         """Handler: create and register a plant at (x, y). Defaults to map center."""
-        map_w, map_h = map_size
+        map_w, map_h = world.map_size
         cx = x if x is not None else map_w / 2
         cy = y if y is not None else map_h / 2
-        return cls(cx, cy, scene, map_size, growth_level=growth_level)
+        return cls(cx, cy, world, growth_level=growth_level)
 
     @classmethod
-    def _is_valid_seed_position(cls, scene, map_size, seed_x: float, seed_y: float, exclude: set) -> bool:
-        """Check bounds and min spacing from plants and excluded positions."""
-        map_width, map_height = map_size
+    def _is_valid_seed_position(cls, world, seed_x: float, seed_y: float, exclude: set) -> bool:
+        """Check bounds, water, and min spacing from plants and excluded positions."""
+        map_width, map_height = world.map_size
         padding = PLANT_CONFIG["bounds_padding"]
         min_spacing = PLANT_CONFIG["min_spacing"]
         min_spacing_sq = min_spacing * min_spacing
@@ -30,18 +30,9 @@ class Plant(Entity):
         if not (padding <= seed_x <= map_width - padding and padding <= seed_y <= map_height - padding):
             return False
 
-        try:
-            plants_layer = scene["plants"]
-        except KeyError:
-            plants_layer = ()
-
-        for sprite in plants_layer:
-            if not isinstance(sprite, Plant):
-                continue
-            dx = sprite.center_x - seed_x
-            dy = sprite.center_y - seed_y
-            if dx * dx + dy * dy < min_spacing_sq:
-                return False
+        # Spatial-hash lookup instead of scanning every plant
+        if world.nearby("plants", seed_x, seed_y, min_spacing):
+            return False
 
         for (ex_x, ex_y) in exclude:
             dx = ex_x - seed_x
@@ -49,18 +40,18 @@ class Plant(Entity):
             if dx * dx + dy * dy < min_spacing_sq:
                 return False
 
-        return True
+        return not world.is_blocked(seed_x, seed_y)
 
     @classmethod
-    def _try_spawn(cls, scene, map_size, seed_x: float, seed_y: float, *, growth_level: int = 1) -> bool:
+    def _try_spawn(cls, world, seed_x: float, seed_y: float, *, growth_level: int = 1) -> bool:
         """Bounds check, spacing check, then spawn. Returns True if spawned."""
-        if not cls._is_valid_seed_position(scene, map_size, seed_x, seed_y, exclude=set()):
+        if not cls._is_valid_seed_position(world, seed_x, seed_y, exclude=set()):
             return False
-        cls.spawn(scene, map_size, seed_x, seed_y, growth_level=growth_level)
+        cls.spawn(world, seed_x, seed_y, growth_level=growth_level)
         return True
 
     @classmethod
-    def process_pending_seeds(cls, scene, map_size) -> None:
+    def process_pending_seeds(cls, world) -> None:
         """Process all queued seeds in one batch. Validates, spawns valid ones, updates reproduction_history."""
         if not cls._pending_seeds:
             return
@@ -69,59 +60,52 @@ class Plant(Entity):
         cls._pending_seeds = []
 
         spawned_positions: set[tuple[float, float]] = set()
-        results: dict[object, bool] = {}  # plant -> success
+        reproduction = PLANT_CONFIG["reproduction"]
 
         for plant, seed_x, seed_y in batch:
-            valid = cls._is_valid_seed_position(scene, map_size, seed_x, seed_y, exclude=spawned_positions)
-            if valid:
-                cls.spawn(scene, map_size, seed_x, seed_y)
-                spawned_positions.add((seed_x, seed_y))
-                results[plant] = True
-            else:
-                results[plant] = False
-
-        for plant, _, _ in batch:
-            success = results[plant]
+            success = cls._is_valid_seed_position(world, seed_x, seed_y, exclude=spawned_positions)
             if success:
-                plant.reproduction_history["successes"] += 1
-                plant.reproduction_history["fails"] = 0
+                cls.spawn(world, seed_x, seed_y)
+                spawned_positions.add((seed_x, seed_y))
+
+            history = plant.reproduction_history
+            if success:
+                history["successes"] += 1
+                history["fails"] = 0
             else:
-                plant.reproduction_history["fails"] += 1
-                plant.reproduction_history["successes"] = 0
+                history["fails"] += 1
+                history["successes"] = 0
 
-            if plant.reproduction_history["successes"] >= plant.config["reproduction"]["max_successes"]:
-                plant.reproduction_history["successes"] = 0
-                plant.reproduction_history["factor"] = 1
+            if history["successes"] >= reproduction["max_successes"]:
+                history["successes"] = 0
+                history["factor"] = 1
 
-            if plant.reproduction_history["fails"] >= plant.config["reproduction"]["max_fails"]:
-                plant.reproduction_history["fails"] = 0
-                plant.reproduction_history["factor"] *= plant.config["reproduction"]["factor"]
+            if history["fails"] >= reproduction["max_fails"]:
+                history["fails"] = 0
+                history["factor"] *= reproduction["factor"]
 
-            base_delay = plant.config["reproduction_delay"] * plant.reproduction_history["factor"]
+            base_delay = plant.config["reproduction_delay"] * history["factor"]
             variability = 0.2
             plant.reproduction_timer = base_delay * random.uniform(1 - variability, 1 + variability)
 
     @staticmethod
-    def spawn_initial(scene, map_size):
+    def spawn_initial(world):
         padding = PLANT_CONFIG["bounds_padding"]
-        map_w, map_h = map_size
+        map_w, map_h = world.map_size
         for _ in range(PLANT_CONFIG["initial_count"]):
             growth_level = random.randint(1, PLANT_CONFIG["max_growth_level"])
             x = random.uniform(padding, map_w - padding)
             y = random.uniform(padding, map_h - padding)
-            Plant._try_spawn(scene, map_size, x, y, growth_level=growth_level)
+            Plant._try_spawn(world, x, y, growth_level=growth_level)
 
-    def __init__(self, x, y, scene, map_size, growth_level=1):
+    def __init__(self, x, y, world, growth_level=1):
         if growth_level < 1 or growth_level > PLANT_CONFIG["max_growth_level"]:
             raise ValueError(f"Invalid growth level: {growth_level}. Must be between 1 and {PLANT_CONFIG['max_growth_level']}")
-        if scene is None:
-            raise ValueError("Scene is required for plant initialization")
 
         self.config = PLANT_CONFIG
-        self.growth_timer = self.config["max_growth_timer"]
-        self.reproduction_timer = self.config["reproduction_delay"]
-        self.scene = scene
-        self.map_size = map_size
+        # Randomize so plants planted together don't all grow on the same frame
+        self.growth_timer = self.config["max_growth_timer"] * random.uniform(0.8, 1.2)
+        self.reproduction_timer = self.config["reproduction_delay"] * random.uniform(0.8, 1.2)
         self.growth_textures = sprite_manager.get_texture(self.config["growth_textures"])
         self.reproduction_history = {
             "successes": 0,
@@ -129,10 +113,9 @@ class Plant(Entity):
             "factor": 1
         }
 
-        # Ensure texture_index is valid and the texture exists
         initial_texture = self.growth_textures[growth_level - 1]
 
-        super().__init__(initial_texture, x, y)
+        super().__init__(initial_texture, x, y, world)
 
         self.growth_level = growth_level
         self.full_grown = self.growth_level >= self.config["max_growth_level"]
@@ -142,7 +125,7 @@ class Plant(Entity):
         self.full_grown = new_growth_level >= self.config["max_growth_level"]
         requested_level = min(max(new_growth_level, 1), self.config["max_growth_level"])
         texture_index = max(0, min(requested_level - 1, len(self.growth_textures) - 1))
-        
+
         # Ensure texture_index is valid and the texture exists
         if texture_index < len(self.growth_textures) and self.growth_textures[texture_index] is not None:
             if self.growth_level != requested_level or self.texture != self.growth_textures[texture_index]:
@@ -153,6 +136,20 @@ class Plant(Entity):
                 self.growth_timer = self.config["max_growth_timer"] * random.uniform(1-variability, 1+variability)
         else:
             print(f"Warning: Could not set growth level {requested_level}. Texture not available.")
+
+    @property
+    def edible(self) -> bool:
+        """Seedlings are left alone so grazed areas can regrow."""
+        return self.growth_level >= self.config["min_edible_level"]
+
+    def be_eaten(self) -> float:
+        """Graze the plant back to a seedling and return the energy it provides."""
+        energy = self.config["provided_energy"][self.growth_level - 1]
+        self.full_grown = False
+        self.growth_level = 1
+        self.texture = self.growth_textures[0]
+        self.growth_timer = self.config["max_growth_timer"] * random.uniform(0.8, 1.2)
+        return energy
 
     def update(self, delta_time: float = 1/60):
         if self.full_grown:
@@ -177,10 +174,3 @@ class Plant(Entity):
         seed_x = self.center_x + distance * math.cos(direction)
         seed_y = self.center_y + distance * math.sin(direction)
         Plant._pending_seeds.append((self, seed_x, seed_y))
-
-    def drop_seed(self) -> bool:
-        direction = random.uniform(0, 2 * math.pi)
-        distance = random.uniform(self.config["seed_min_distance"], self.config["seed_range"])
-        seed_x = self.center_x + distance * math.cos(direction)
-        seed_y = self.center_y + distance * math.sin(direction)
-        return Plant._try_spawn(self.scene, self.map_size, seed_x, seed_y)

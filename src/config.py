@@ -42,85 +42,100 @@ PLANT_CONFIG = {
         "max_successes": 3,
     },
     "provided_energy": [10, 20, 30, 50],
+    "min_edible_level": 2,  # grazing resets a plant to stage 1; seedlings can't be eaten
     "physics": {
         "collision_type": "plant",
         "body_type": PymunkPhysicsEngine.STATIC,
     },
 }
 
-# Walking creature configuration
-WALKING_CREATURE_CONFIG = {
-    "default": {
-        "base_speed": 50,                   # Base walking speed (pixels per second)
-        "max_speed": 120,                   # Maximum speed (for running)
-        "energy_consumption_factor": 0.0005,  # Factor for energy consumption proportional to speed² and mass
-        "base_energy_consumption": 0.1,     # Energy consumed per update when stationary
-        "vision_range": 150,                # Default vision range in pixels
-        "vision_angle": 90,                 # Default vision angle in degrees
-        "reproduction_energy_threshold": 100,  # Default energy threshold for reproduction
-        "reproduction_delay": 5.0,          # Default seconds between reproductions
-        "energy_cost_reproduction": 25,     # Default energy cost for reproduction
-    },
-    "herbivore": {
-        "vision_range": 200,
-        "vision_angle": 90,
-        "reproduction_energy_threshold": 150,
-        "reproduction_delay": 5.0,
-        "energy_cost_reproduction": 30,
-    },
-    "carnivore": {
-        "vision_range": 250,
-        "vision_angle": 100,
-        "reproduction_energy_threshold": 200,
-        "reproduction_delay": 7.0,
-        "energy_cost_reproduction": 40,
-    },
-    "smarty": {
-        "vision_range": 300,
-        "vision_angle": 110,
-        "reproduction_energy_threshold": 180,
-        "reproduction_delay": 6.0,
-        "energy_cost_reproduction": 35,
-    },
+# Creature configuration.
+# CREATURE_DEFAULTS holds shared values; each species dict overrides what it needs
+# (merged in Creature.__init_subclass__). Rates are per second unless noted.
+_CREATURE_PHYSICS = {
+    "moment_of_inertia": PymunkPhysicsEngine.MOMENT_INF,
+    "damping": 0.9,
 }
 
-# Herbivore movement (minimal: constant speed, turn periodically)
+CREATURE_DEFAULTS = {
+    "initial_count": 0,
+    "max_population": 30,
+    "bounds_padding": 40,
+    # Movement
+    "wander_speed": 25,        # pixels per second while wandering
+    "run_speed": 60,           # pixels per second while chasing / fleeing
+    "turn_rate": 3.0,          # radians per second (smooth turning)
+    "wander_turn_interval": 4.0,  # seconds between random heading changes
+    "wall_probe_distance": 28,  # how far ahead to look for water/walls
+    # Senses and brain
+    "vision_range": 200,
+    "think_interval": 0.2,     # seconds between brain decisions (steering runs every frame)
+    # Energy
+    "initial_energy": 60,
+    "max_energy": 150,
+    "base_energy_drain": 0.5,  # per second, even when resting
+    "move_energy_factor": 0.0002,  # extra drain per second = factor * speed^2
+    "hungry_ratio": 0.7,       # looks for food below this fraction of max_energy
+    "eat_range": 10,           # extra reach beyond touching, in pixels
+    # Life cycle
+    "max_age": 300,            # seconds
+    "reproduction_energy_threshold": 120,
+    "reproduction_cooldown": 20.0,
+    "energy_cost_reproduction": 50,
+    "child_energy": 40,
+    # Diet: layer names this creature eats, and layers it runs away from
+    "diet": [],
+    "threats": [],
+    "nutrition": 50,           # energy a predator gains when eating this creature
+    "physics": _CREATURE_PHYSICS,
+}
+
 HERBIVORE_CONFIG = {
-    "initial_count": 5,
-    "bounds_padding": 20,
-    "speed": 20,           # pixels per second
-    "turn_interval": 5.0,  # seconds between direction changes
-    "turn_rate": 2.0,      # radians per second (smooth turning)
-    "physics": {
-        "moment_of_inertia": PymunkPhysicsEngine.MOMENT_INF,
-        "damping": 0.9,
-    },
+    "initial_count": 12,
+    "max_population": 60,
+    "wander_speed": 25,
+    "run_speed": 65,
+    "turn_rate": 3.0,
+    "vision_range": 200,
+    "max_age": 240,
+    "reproduction_energy_threshold": 110,
+    "diet": ["plants"],
+    "threats": ["carnivores"],
+    "nutrition": 70,
 }
 
-# Carnivore movement (same minimal behaviour as herbivore for now)
 CARNIVORE_CONFIG = {
     "initial_count": 3,
-    "bounds_padding": 20,
-    "speed": 25,           # pixels per second
-    "turn_interval": 4.0,  # seconds between direction changes
-    "turn_rate": 2.5,      # radians per second (smooth turning)
-    "physics": {
-        "moment_of_inertia": PymunkPhysicsEngine.MOMENT_INF,
-        "damping": 0.9,
-    },
+    "max_population": 12,
+    "wander_speed": 30,
+    "run_speed": 75,
+    "turn_rate": 3.5,
+    "vision_range": 250,
+    "initial_energy": 100,
+    "max_energy": 200,
+    "base_energy_drain": 0.7,
+    "max_age": 360,
+    "reproduction_energy_threshold": 170,
+    "reproduction_cooldown": 30.0,
+    "energy_cost_reproduction": 80,
+    "child_energy": 70,
+    "diet": ["herbivores", "smarties"],
+    "nutrition": 90,
 }
 
-# Smarty movement (same minimal behaviour as herbivore for now)
 SMARTIE_CONFIG = {
-    "initial_count": 2,
-    "bounds_padding": 20,
-    "speed": 18,           # pixels per second
-    "turn_interval": 6.0,  # seconds between direction changes
-    "turn_rate": 1.5,      # radians per second (smooth turning)
-    "physics": {
-        "moment_of_inertia": PymunkPhysicsEngine.MOMENT_INF,
-        "damping": 0.9,
-    },
+    "initial_count": 4,
+    "max_population": 20,
+    "wander_speed": 22,
+    "run_speed": 60,
+    "turn_rate": 2.5,
+    "vision_range": 300,
+    "max_age": 420,
+    "reproduction_energy_threshold": 130,
+    "reproduction_cooldown": 25.0,
+    "diet": ["plants"],
+    "threats": ["carnivores"],
+    "nutrition": 80,
 }
 
 # Physics settings
