@@ -15,12 +15,8 @@ class EntityManager():
     """
     def __init__(self):
         layer_options = {
-            "ground": {
-                "use_spatial_hash": True
-            },
-            "plants": {
-                "use_spatial_hash": True
-            }
+            "ground": {"use_spatial_hash": True},
+            "walls": {"use_spatial_hash": True},
         }
         self.tile_map = arcade.load_tilemap(
             "assets/maps/uniform_map.json",
@@ -31,9 +27,20 @@ class EntityManager():
         self.scene.physics_engine = arcade.PymunkPhysicsEngine(damping=DEFAULT_DAMPING, gravity=GRAVITY)
         self.map_size = self.tile_map.width * self.tile_map.tile_width, self.tile_map.height * self.tile_map.tile_height
 
+        # Add walls as static physics bodies so creatures cannot pass through
+        self.scene.physics_engine.add_sprite_list(
+            self.scene["walls"],
+            friction=0.6,
+            body_type=arcade.PymunkPhysicsEngine.STATIC,
+        )
+
+        # Plants layer (runtime, not from tilemap) - needed before spawn_initial
+        self.scene.add_sprite_list("plants", use_spatial_hash=True)
+
     def update(self, delta_time: float = 1/60):
         """Update all entities and physics. Skip static ground layer."""
         self.scene.update(delta_time, names=["plants", "herbivores", "carnivores", "smarties"])
+        Plant.process_pending_seeds(self.scene, self.map_size)
         self.scene.physics_engine.step()
 
     def get_map_size(self):

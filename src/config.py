@@ -90,6 +90,7 @@ HERBIVORE_CONFIG = {
     "bounds_padding": 20,
     "speed": 20,           # pixels per second
     "turn_interval": 5.0,  # seconds between direction changes
+    "turn_rate": 2.0,      # radians per second (smooth turning)
     "physics": {
         "moment_of_inertia": PymunkPhysicsEngine.MOMENT_INF,
         "damping": 0.9,
@@ -102,6 +103,7 @@ CARNIVORE_CONFIG = {
     "bounds_padding": 20,
     "speed": 25,           # pixels per second
     "turn_interval": 4.0,  # seconds between direction changes
+    "turn_rate": 2.5,      # radians per second (smooth turning)
     "physics": {
         "moment_of_inertia": PymunkPhysicsEngine.MOMENT_INF,
         "damping": 0.9,
@@ -114,6 +116,7 @@ SMARTIE_CONFIG = {
     "bounds_padding": 20,
     "speed": 18,           # pixels per second
     "turn_interval": 6.0,  # seconds between direction changes
+    "turn_rate": 1.5,      # radians per second (smooth turning)
     "physics": {
         "moment_of_inertia": PymunkPhysicsEngine.MOMENT_INF,
         "damping": 0.9,
