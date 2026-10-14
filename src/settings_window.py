@@ -5,6 +5,7 @@ and talks to the simulation through settings.json.
     uv run python src/settings_window.py
 """
 import os
+import signal
 import sys
 
 import arcade
@@ -39,8 +40,14 @@ def _fmt(value) -> str:
 
 class SettingsWindow(arcade.Window):
     def __init__(self):
-        super().__init__(WIDTH, HEIGHT, "EvoTales settings", resizable=True)
+        # A settings form doesn't need 60 fps; keep it light next to the simulation
+        super().__init__(WIDTH, HEIGHT, "EvoTales settings", resizable=True,
+                         update_rate=1 / 20, draw_rate=1 / 20)
         self.background_color = (34, 40, 49)
+        # The simulation's Settings button sends SIGUSR1 when this window is already open
+        self._raise_requested = False
+        signal.signal(signal.SIGUSR1, lambda *_: setattr(self, "_raise_requested", True))
+        self.view_options = settings.display_options()
         self.ui = UIManager()
         self.ui.enable()
         self.values = settings.current_values()
@@ -59,6 +66,12 @@ class SettingsWindow(arcade.Window):
             label = f"[{name}]" if name == self.section else name
             tabs.add(self._button(label, 112, lambda n=name: self.select(n)))
         root.add(tabs)
+
+        view = UIBoxLayout(vertical=False, space_between=6)
+        for key, text in (("show_fov", "field of view"), ("show_energy", "energy bars")):
+            mark = "[x]" if self.view_options[key] else "[  ]"
+            view.add(self._button(f"{mark} Show {text}", 200, lambda k=key: self.toggle_display(k), height=30))
+        root.add(view)
 
         values = self.values[self.section]
         for key in settings.editable_keys(self.section):
@@ -126,6 +139,18 @@ class SettingsWindow(arcade.Window):
         label.text = _fmt(new)
         self.status = "Not applied yet"
         self.build()
+
+    def toggle_display(self, key):
+        """Overlay toggles apply immediately; they don't touch the simulation values."""
+        self.view_options[key] = not self.view_options[key]
+        settings.save_display(self.view_options)
+        self.build()
+
+    def on_update(self, delta_time):
+        if self._raise_requested:
+            self._raise_requested = False
+            self.set_visible(True)
+            self.activate()
 
     def toggle_diet(self, food):
         diet = self.values[self.section]["diet"]

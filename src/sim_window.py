@@ -1,5 +1,6 @@
 import os
 import platform
+import signal
 import subprocess
 import sys
 import time
@@ -12,6 +13,7 @@ import settings
 from config import CAMERA_SETTINGS, SCREEN_TITLE, WINDOW_HEIGHT, WINDOW_WIDTH
 from entities.entity_manager import EntityManager
 from input_controller import CameraMode, InputController
+from overlays import Overlays
 from simulation.camera_controller import CameraController
 from sprite_manager import sprite_manager
 
@@ -44,6 +46,7 @@ class SimulationWindow(arcade.Window):
         self.background_color = arcade.color.AMAZON
         self.entity_manager: Optional[EntityManager] = None
         self.paused = False
+        self.overlays = Overlays()
         # Screen-space camera and cached Text object for the HUD (arcade.Text is far
         # cheaper than draw_text, which rebuilds glyphs every frame)
         self.hud_camera = arcade.Camera2D()
@@ -76,7 +79,10 @@ class SimulationWindow(arcade.Window):
     def setup(self):
         """Build a fresh world with the current settings. Also used by Restart."""
         sprite_manager.load_all_sprite_sheets()
-        settings.apply(settings.load())
+        data = settings.load()
+        settings.apply(data)
+        self.overlays.configure(**settings.display_options(data))
+        self.overlays.clear()
         self.entity_manager = EntityManager()
         map_width, map_height = self.entity_manager.get_map_size()
         self.camera_controller.setup(map_width, map_height)
@@ -93,8 +99,9 @@ class SimulationWindow(arcade.Window):
         self.pause_button.text = "Resume" if self.paused else "Pause"
 
     def open_settings(self):
-        """Open the settings window (a separate process) unless it's already open."""
+        """Open the settings window (a separate process), or bring it to the front if it's open."""
         if self._settings_process is not None and self._settings_process.poll() is None:
+            self._settings_process.send_signal(signal.SIGUSR1)
             return
         self._settings_process = subprocess.Popen([sys.executable, SETTINGS_SCRIPT])
 
@@ -102,6 +109,7 @@ class SimulationWindow(arcade.Window):
         data, restart = self.settings_watcher.poll()
         if data is None:
             return
+        self.overlays.configure(**settings.display_options(data))
         if restart:
             self.restart()
             return
@@ -114,13 +122,14 @@ class SimulationWindow(arcade.Window):
         """Handle window resizing events."""
         super().on_resize(width, height)
         self.camera_controller.handle_resize(width, height)
-        self.hud_camera.match_window()
+        self.hud_camera.match_window(position=True)
 
     def on_draw(self):
         """Render the screen."""
         self.clear()
         self.camera_controller.use()
         self.entity_manager.scene.draw()
+        self.overlays.draw()
         self.hud_camera.use()
         self.hud_text.draw()
         self.ui.draw()
@@ -151,6 +160,7 @@ class SimulationWindow(arcade.Window):
             self._poll_settings()
         if not self.paused:
             self.entity_manager.update(delta_time)
+        self.overlays.update(self.entity_manager, LAYERS[1:])
         self._hud_timer -= delta_time
         if self._hud_timer <= 0:
             self._hud_timer = HUD_REFRESH

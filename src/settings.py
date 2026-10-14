@@ -14,6 +14,8 @@ from config import (CARNIVORE_CONFIG, CREATURE_DEFAULTS, HERBIVORE_CONFIG, OMNIV
 
 SETTINGS_PATH = "settings.json"
 RESTART_KEY = "_restart"
+DISPLAY_KEY = "display"
+DISPLAY_DEFAULTS = {"show_fov": False, "show_energy": False}
 
 SECTIONS = {
     "plants": PLANT_CONFIG,
@@ -83,6 +85,25 @@ def save(values: dict, restart: bool = False) -> None:
         if diff:
             data[section] = diff
     data[RESTART_KEY] = previous.get(RESTART_KEY, 0) + (1 if restart else 0)
+    if DISPLAY_KEY in previous:
+        data[DISPLAY_KEY] = previous[DISPLAY_KEY]
+    _write(data)
+
+
+def display_options(data: dict | None = None) -> dict:
+    """Overlay toggles (field of view, energy bars), with defaults filled in."""
+    data = load() if data is None else data
+    return {**DISPLAY_DEFAULTS, **data.get(DISPLAY_KEY, {})}
+
+
+def save_display(options: dict) -> None:
+    """Store the overlay toggles without touching the simulation values."""
+    data = load()
+    data[DISPLAY_KEY] = {k: bool(options.get(k, v)) for k, v in DISPLAY_DEFAULTS.items()}
+    _write(data)
+
+
+def _write(data: dict) -> None:
     tmp = SETTINGS_PATH + ".tmp"
     with open(tmp, "w") as f:
         json.dump(data, f, indent=2)
