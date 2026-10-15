@@ -142,14 +142,14 @@ class BehaviourSystem:
 
         # Creature food: species I eat, alive or corpse
         is_cfood = in_sight & s.eats[rs[:, None], others_sp[None, :]]
-        if len(cols):
+        best_c_d2, best_c = np.full(len(rows), np.inf), np.full(len(rows), -1)
+        hr = np.nonzero(s.eats[rs].any(axis=1))[0]  # only rows that eat creatures need this
+        if len(cols) and len(hr):
             # Herds confuse hunters: prey in a crowd looks further away than it is
-            crowd = 1.0 + P["crowd_penalty"][rs][:, None] * (s.alive[cols] * self.herd_peers(cols))[None, :]
-            cfood_d2 = np.where(is_cfood, d2 * crowd, np.inf)
+            crowd = 1.0 + P["crowd_penalty"][rs[hr]][:, None] * (s.alive[cols] * self.herd_peers(cols))[None, :]
+            cfood_d2 = np.where(is_cfood[hr], d2[hr] * crowd, np.inf)
             bc = np.argmin(cfood_d2, axis=1)
-            best_c_d2, best_c = cfood_d2[ar, bc], cols[bc]
-        else:
-            best_c_d2, best_c = np.full(len(rows), np.inf), np.full(len(rows), -1)
+            best_c_d2[hr], best_c[hr] = cfood_d2[np.arange(len(hr)), bc], cols[bc]
 
         # --- plants in sight ---
         px, py, edible, claim = self.world.plant_arrays()
