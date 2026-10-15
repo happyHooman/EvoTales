@@ -9,8 +9,8 @@ import copy
 import json
 import os
 
-from config import (CARNIVORE_CONFIG, CREATURE_DEFAULTS, ENVIRONMENT_CONFIG, HERBIVORE_CONFIG, PLANT_CONFIG,
-                    SMARTIE_CONFIG)
+from config import (BIOME_CONFIG, CARNIVORE_CONFIG, CREATURE_DEFAULTS, ENVIRONMENT_CONFIG, HERBIVORE_CONFIG,
+                    MAP_CONFIG, PLANT_CONFIG, SMARTIE_CONFIG)
 
 SETTINGS_PATH = "settings.json"
 RESTART_KEY = "_restart"
@@ -18,13 +18,19 @@ DISPLAY_KEY = "display"
 DISPLAY_DEFAULTS = {"show_fov": False, "show_energy": False}
 
 SECTIONS = {
+    "map": MAP_CONFIG,
+    "biomes": BIOME_CONFIG,
     "world": ENVIRONMENT_CONFIG,
     "plants": PLANT_CONFIG,
     "herbivores": HERBIVORE_CONFIG,
     "smarties": SMARTIE_CONFIG,
     "carnivores": CARNIVORE_CONFIG,
 }
-CREATURE_SECTIONS = [name for name in SECTIONS if name not in ("plants", "world")]
+NON_CREATURE_SECTIONS = ("map", "biomes", "world", "plants")
+CREATURE_SECTIONS = [name for name in SECTIONS if name not in NON_CREATURE_SECTIONS]
+MAP_KEYS = ["seed", "width_tiles", "height_tiles", "tile_size", "terrain_scale", "climate_scale",
+            "water_level", "beach_width", "temperature_shift", "moisture_shift", "latitude_strength"]
+BIOME_KEYS = list(BIOME_CONFIG)
 WORLD_KEYS = ["day_length", "year_length", "season_strength", "night_darkness", "start_time"]
 
 PLANT_KEYS = [
@@ -54,12 +60,13 @@ RESTART_ONLY_KEYS = {"initial_count", "min_spacing"}
 
 
 def editable_keys(section: str) -> list[str]:
-    return {"plants": PLANT_KEYS, "world": WORLD_KEYS}.get(section, CREATURE_KEYS)
+    return {"plants": PLANT_KEYS, "world": WORLD_KEYS, "map": MAP_KEYS, "biomes": BIOME_KEYS}.get(
+        section, CREATURE_KEYS)
 
 
 def _effective(section: str) -> dict:
     cfg = SECTIONS[section]
-    return dict(cfg) if section in ("plants", "world") else {**CREATURE_DEFAULTS, **cfg}
+    return dict(cfg) if section in NON_CREATURE_SECTIONS else {**CREATURE_DEFAULTS, **cfg}
 
 
 # Code defaults, captured before any overrides are applied

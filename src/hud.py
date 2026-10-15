@@ -10,6 +10,7 @@ import numpy as np
 
 from engine import ACTION_NAMES
 from engine.store import GENES
+from world.mapgen import BIOMES
 
 SAMPLE_EVERY = 1.0   # seconds between graph samples
 HISTORY = 300        # samples kept (5 minutes)
@@ -127,7 +128,7 @@ class Inspector:
         gene_text = [f"{g} {getattr(store.genes, g)[r]:.2f}" for g in GENES]
         lines = [
             f"{layer[:-1]} #{self.uid}  gen {store.core.generation[r]}",
-            f"{state}" + (f"  - {self._note}" if self._note else ""),
+            f"{state} in {BIOMES[store.core.biome[r]]}" + (f"  - {self._note}" if self._note else ""),
             f"health  {v.health[r]:5.1f} / {store.p('max_health', r):.0f}",
             f"stamina {v.stamina[r]:5.1f} / {store.p('max_stamina', r):.0f}",
             f"food    {v.food[r]:5.1f} / {store.p('max_food', r):.0f}",

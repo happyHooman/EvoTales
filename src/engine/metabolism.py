@@ -49,7 +49,7 @@ class MetabolismSystem:
         relaxing = s.mind.relaxing[rows]
         moving = (speed > 0) & ~relaxing
         k = np.log(P["run_stamina_multiplier"][sp]) / np.log(P["run_speed_multiplier"][sp])
-        move_cost = np.where(moving, P["walk_stamina_cost"][sp] * (speed / P["walk_speed"][sp]) ** k, 0.0)
+        move_cost = np.where(moving, s.p("walk_stamina_cost", rows) * (speed / P["walk_speed"][sp]) ** k, 0.0)
         healing = relaxing & (health < max_h) & (food > starve_line)
         stamina_cost = (s.p("alive_stamina_cost", rows) + move_cost
                         + np.where(healing, P["heal_stamina_cost"][sp], 0.0)) * dt

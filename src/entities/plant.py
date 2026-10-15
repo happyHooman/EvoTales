@@ -39,7 +39,10 @@ class Plant(Entity):
             if dx * dx + dy * dy < min_spacing_sq:
                 return False
 
-        return not world.is_blocked(seed_x, seed_y)
+        if world.is_blocked(seed_x, seed_y):
+            return False
+        # Seeds take root more readily in fertile biomes (forest, swamp) than in desert or tundra
+        return random.random() < min(1.0, world.plant_factor(seed_x, seed_y))
 
     @classmethod
     def _try_spawn(cls, world, seed_x: float, seed_y: float, *, growth_level: int = 1) -> bool:
@@ -119,6 +122,7 @@ class Plant(Entity):
         self.growth_level = growth_level
         self.full_grown = self.growth_level >= self.config["max_growth_level"]
         self._register()
+        self.biome_growth = world.plant_factor(x, y)
         world.plant_added(self)
 
     def set_growth_level(self, new_growth_level: int):

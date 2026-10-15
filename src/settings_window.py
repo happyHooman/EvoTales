@@ -64,6 +64,17 @@ LABELS = {
     "season_strength": "Season strength",
     "night_darkness": "Night darkness",
     "start_time": "Start time (s, on restart)",
+    "seed": "Seed",
+    "width_tiles": "Width (tiles)",
+    "height_tiles": "Height (tiles)",
+    "tile_size": "Tile size (px)",
+    "terrain_scale": "Terrain feature size (tiles)",
+    "climate_scale": "Climate zone size (tiles)",
+    "water_level": "Water level (0..1)",
+    "beach_width": "Beach width",
+    "temperature_shift": "Warmer (+) / colder (-)",
+    "moisture_shift": "Wetter (+) / drier (-)",
+    "latitude_strength": "North-south temperature drop",
     "attack_damage": "Bite damage (hunting)",
     "defense_damage": "Bite-back damage",
     "attack_cooldown": "Seconds between bites",
@@ -126,16 +137,28 @@ PLANT_STEPS = {"initial_count": 10}
 # Decimal point and no thousands separators, whatever the system locale
 NUMBER_LOCALE = QLocale.c()
 NUMBER_LOCALE.setNumberOptions(QLocale.NumberOption.OmitGroupSeparator)
-MINIMUMS = {"day_length": 10.0, "year_length": 60.0, "run_speed_multiplier": 1.05, "run_stamina_multiplier": 1.0, "boldness_interval": 0.1,
+MINIMUMS = {"temperature_shift": -1.0, "moisture_shift": -1.0, "width_tiles": 40, "height_tiles": 30,
+            "tile_size": 8, "terrain_scale": 5, "climate_scale": 5, "day_length": 10.0, "year_length": 60.0, "run_speed_multiplier": 1.05, "run_stamina_multiplier": 1.0, "boldness_interval": 0.1,
             "max_health": 5, "max_stamina": 5, "max_food": 5, "digest_efficiency": 0.05,
             "min_edible_level": 1}
-MAXIMUMS = {"min_edible_level": 4, "hunger_boldness": 1.0, "herd_cohesion": 1.0, "night_vision": 1.0,
+MAXIMUMS = {"water_level": 0.9, "beach_width": 0.3, "temperature_shift": 1.0, "moisture_shift": 1.0,
+            "width_tiles": 1000, "height_tiles": 1000, "tile_size": 64, "seed": 999999,
+            "min_edible_level": 4, "hunger_boldness": 1.0, "herd_cohesion": 1.0, "night_vision": 1.0,
             "season_strength": 0.95, "night_darkness": 0.95}
+
+
+MAP_STEPS = {"seed": 1, "width_tiles": 10, "height_tiles": 10, "tile_size": 1, "terrain_scale": 5,
+             "climate_scale": 5, "water_level": 0.02, "beach_width": 0.01, "temperature_shift": 0.05,
+             "moisture_shift": 0.05, "latitude_strength": 0.05}
 
 
 def _step(section, key):
     if section == "plants" and key in PLANT_STEPS:
         return PLANT_STEPS[key]
+    if section == "map":
+        return MAP_STEPS.get(key, 1)
+    if section == "biomes":
+        return 0.05
     return STEPS.get(key, 1)
 
 
@@ -247,7 +270,20 @@ class SettingsWindow(QWidget):
                 self.diet_boxes[(section, food)] = box
             diet_row.addStretch()
             grid.addWidget(diet, half, 0, 1, 4)
-        grid.setRowStretch(half + 1, 1)
+        if section == "map":
+            row = QHBoxLayout()
+            for text, slot in (("New random seed", self.random_seed), ("Regenerate map", lambda: self.apply(True))):
+                button = QPushButton(text)
+                button.clicked.connect(slot)
+                row.addWidget(button)
+            row.addStretch()
+            box = QWidget()
+            box.setLayout(row)
+            grid.addWidget(box, half + 1, 0, 1, 4)
+            note = QLabel("Map changes take effect when the map is regenerated (Apply + restart).")
+            note.setWordWrap(True)
+            grid.addWidget(note, half + 2, 0, 1, 4)
+        grid.setRowStretch(half + 3, 1)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(page)
@@ -309,6 +345,11 @@ class SettingsWindow(QWidget):
                 box.setChecked(food in self.values[section]["diet"])
         self._loading = False
         self._mark_pending(f"{section.capitalize()}: code defaults restored, not applied yet.")
+
+    def random_seed(self):
+        import random
+        self.inputs[("map", "seed")].setValue(random.randint(0, 999999))
+        self._mark_pending("New seed picked. Regenerate map to see it.")
 
     # ---------------------------------------------------------------- presets
 

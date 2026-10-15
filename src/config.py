@@ -20,7 +20,7 @@ CAMERA_SETTINGS = {
 
 # Plant configuration
 PLANT_CONFIG = {
-    "initial_count": 100,
+    "initial_count": 200,
     "min_spacing": 30,
     "bounds_padding": 20,
     "seed_min_distance": 50,
@@ -42,6 +42,38 @@ PLANT_CONFIG = {
     "provided_energy": [10, 20, 30, 50],
     "min_edible_level": 2,  # grazing resets a plant to stage 1; seedlings can't be eaten
     "winter_wither": 0.08,  # chance per second (scaled by how cold it is) to drop a growth stage
+}
+
+# Map: "generated" builds a fresh world from noise (biomes); "tiled" loads the
+# hand-made Tiled map in assets/maps. Changes apply on restart (Regenerate).
+MAP_CONFIG = {
+    "source": "generated",
+    "seed": 7,
+    "width_tiles": 200,
+    "height_tiles": 150,
+    "tile_size": 16,             # pixels per tile
+    "terrain_scale": 40,         # tiles per hill/lake feature (bigger = broader)
+    "climate_scale": 70,         # tiles per climate zone
+    "water_level": 0.3,          # 0..1: more = more lakes
+    "beach_width": 0.03,
+    "temperature_shift": 0.0,    # + warmer (more desert/swamp), - colder (more tundra)
+    "moisture_shift": 0.0,       # + wetter (more forest/swamp), - drier (more desert)
+    "latitude_strength": 0.4,    # how much colder the top of the map is than the bottom
+}
+
+# What each biome does to creatures and plants (multipliers; 1 = no effect).
+#   plants   - plant growth speed, and the chance a seed takes root there
+#   speed    - movement speed
+#   vision   - how far creatures see (forests hide; open ground shows)
+#   stamina  - stamina cost of living and moving (heat, mud)
+#   hunger   - food drain (cold)
+BIOME_CONFIG = {
+    "grassland_plants": 1.0, "grassland_speed": 1.0, "grassland_vision": 1.0, "grassland_stamina": 1.0, "grassland_hunger": 1.0,
+    "forest_plants": 1.3, "forest_speed": 0.85, "forest_vision": 0.55, "forest_stamina": 1.1, "forest_hunger": 1.0,
+    "desert_plants": 0.15, "desert_speed": 0.9, "desert_vision": 1.25, "desert_stamina": 1.35, "desert_hunger": 1.15,
+    "swamp_plants": 1.5, "swamp_speed": 0.6, "swamp_vision": 0.8, "swamp_stamina": 1.4, "swamp_hunger": 1.0,
+    "tundra_plants": 0.35, "tundra_speed": 0.9, "tundra_vision": 1.1, "tundra_stamina": 1.1, "tundra_hunger": 1.4,
+    "beach_plants": 0.2, "beach_speed": 1.0, "beach_vision": 1.2, "beach_stamina": 1.0, "beach_hunger": 1.0,
 }
 
 # Day/night and seasons

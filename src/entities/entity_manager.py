@@ -4,12 +4,13 @@ from collections import Counter
 
 import arcade
 import numpy as np
-from config import PLANT_CONFIG
+from config import BIOME_CONFIG, MAP_CONFIG, PLANT_CONFIG
 from entities.plant import Plant
 from entities.herbivore import Herbivore
 from entities.carnivore import Carnivore
 from entities.smartie import Smarty
 from engine import CreatureEngine
+from world import mapgen
 from environment import Environment
 from sprite_manager import sprite_manager
 
@@ -19,6 +20,7 @@ TILE_SCALING = 1.0
 # shoreline) is treated as water. Tiled gids, as stored in the map json.
 WALKABLE_GROUND_GIDS = {51}
 CREATURE_TYPES = (Herbivore, Smarty, Carnivore)
+BIOME_EFFECTS = ("plants", "speed", "vision", "stamina", "hunger")
 # Plants only need coarse timing (growth takes seconds), so tick them a few times a second
 PLANT_TICK = 0.25
 # Cap the behaviour step so a slow frame doesn't teleport creatures through walls
@@ -31,10 +33,11 @@ class EntityManager():
     CreatureEngine), and offers the services they use: wall checks, plant arrays, stats.
     """
     def __init__(self):
-        self.tile_map = arcade.load_tilemap(MAP_PATH, scaling=TILE_SCALING)
-        self.scene = arcade.Scene.from_tilemap(self.tile_map)
-        self.map_size = self.get_map_size()
-        self._build_blocked_grid()
+        if MAP_CONFIG["source"] == "tiled":
+            self._load_tiled_map()
+        else:
+            self._generate_map()
+        self.refresh_biomes()
 
         # Plants are many and static, so they get a spatial hash (used for seed spacing)
         self.scene.add_sprite_list("plants", use_spatial_hash=True)
@@ -64,6 +67,7 @@ class EntityManager():
     def refresh_food_chain(self) -> None:
         """Re-read species settings (diets, speeds, ...). Call again after settings change."""
         self.creatures.refresh_params()
+        self.refresh_biomes()
         self.warnings = []
         speed = {c.layer_name: c.config["walk_speed"] * c.config["run_speed_multiplier"] for c in CREATURE_TYPES}
         for hunter in CREATURE_TYPES:
@@ -85,7 +89,7 @@ class EntityManager():
             plant_dt = self._plant_time * self.environment.plant_growth
             plants = self.scene["plants"]
             for plant in plants:
-                plant.update(plant_dt)
+                plant.update(plant_dt * plant.biome_growth)
             # Cold seasons wither plants back toward seedlings (less food in winter)
             chill = max(0.0, 1.0 - self.environment.plant_growth)
             wither = PLANT_CONFIG["winter_wither"] * chill * self._plant_time
@@ -125,7 +129,58 @@ class EntityManager():
                 self.creatures.store.vitals.reproduction_timer[row] *= random.uniform(0.3, 1.0)
 
     def get_map_size(self):
-        return self.tile_map.width * self.tile_map.tile_width, self.tile_map.height * self.tile_map.tile_height
+        return self.map_size
+
+    # ------------------------------------------------------------------- map
+
+    def _generate_map(self) -> None:
+        """A fresh world from noise (see world/mapgen.py): biomes, water, ground art."""
+        cfg = MAP_CONFIG
+        self.tiles = mapgen.generate(cfg)  # biome id per tile, row 0 = bottom
+        self._tile_size = float(cfg["tile_size"])
+        self._grid_rows, self._grid_cols = self.tiles.shape
+        self._blocked = np.isin(self.tiles, mapgen.BLOCKED_BIOMES)
+        self.map_size = (self._grid_cols * self._tile_size, self._grid_rows * self._tile_size)
+        image = mapgen.render_ground(self.tiles, int(self._tile_size), cfg["seed"])
+        # Bounding-box hit box: the default one scans every pixel of this big image
+        texture = arcade.Texture(image.convert("RGBA"), hash=f"ground-{cfg['seed']}-{image.size}",
+                                 hit_box_algorithm=arcade.hitbox.algo_bounding_box)
+        ground = arcade.Sprite(texture)
+        ground.position = (self.map_size[0] / 2, self.map_size[1] / 2)
+        self.scene = arcade.Scene()
+        self.scene.add_sprite_list("ground")
+        self.scene.add_sprite("ground", ground)
+
+    def _load_tiled_map(self) -> None:
+        """The hand-made Tiled map: grassland everywhere, its pond and walls blocked."""
+        self.tile_map = arcade.load_tilemap(MAP_PATH, scaling=TILE_SCALING)
+        self.scene = arcade.Scene.from_tilemap(self.tile_map)
+        self.map_size = (self.tile_map.width * self.tile_map.tile_width,
+                         self.tile_map.height * self.tile_map.tile_height)
+        self._build_blocked_grid()
+        self.tiles = np.where(self._blocked, mapgen.WATER, mapgen.GRASSLAND).astype(np.int8)
+
+    def refresh_biomes(self) -> None:
+        """Biome effect tables (effect -> value per biome id) from BIOME_CONFIG."""
+        self.biome_effects = {}
+        for effect in BIOME_EFFECTS:
+            table = np.ones(len(mapgen.BIOMES))
+            for b, name in enumerate(mapgen.BIOMES):
+                table[b] = BIOME_CONFIG.get(f"{name}_{effect}", 1.0)
+            self.biome_effects[effect] = table
+
+    def biome_at(self, xs, ys):
+        """Biome id under each point (water outside the map)."""
+        col = np.floor(np.asarray(xs) / self._tile_size).astype(np.int64)
+        row = np.floor(np.asarray(ys) / self._tile_size).astype(np.int64)
+        inside = (col >= 0) & (col < self._grid_cols) & (row >= 0) & (row < self._grid_rows)
+        result = np.full(col.shape, mapgen.WATER, dtype=np.int64)
+        result[inside] = self.tiles[row[inside], col[inside]]
+        return result
+
+    def plant_factor(self, x, y) -> float:
+        """How well plants grow at (x, y): growth speed and the chance a seed takes."""
+        return float(self.biome_effects["plants"][self.biome_at(x, y)])
 
     def spawn_initial_population(self):
         Plant.spawn_initial(self)

@@ -26,6 +26,7 @@ class CreatureEngine:
         self.behaviour = BehaviourSystem(self.store, world, self.physics, self.metabolism)
 
     def step(self, dt):
+        self.store.update_biomes(self.store.living_rows())
         self.metabolism.step(dt)
         self.behaviour.step(dt)
         self.physics.step(self.store.living_rows(), dt)

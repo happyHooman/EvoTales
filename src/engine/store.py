@@ -59,6 +59,9 @@ GENE_EFFECTS = {
 GENE_RANGE = (0.5, 2.0)
 # Parameters the environment scales per species (day/night, seasons): param -> Environment attribute
 ENV_EFFECTS = {"vision_range": "vision", "food_drain": "food_drain"}
+# Parameters the ground under each creature scales: param -> biome effect (see BIOME_CONFIG)
+BIOME_PARAM_EFFECTS = {"walk_speed": "speed", "vision_range": "vision", "alive_stamina_cost": "stamina",
+                       "walk_stamina_cost": "stamina", "food_drain": "hunger"}
 
 # Action codes (store.mind.action)
 WANDER, RELAX, EAT, FLEE = 0, 1, 2, 3
@@ -89,7 +92,8 @@ class CreatureStore:
         self.species_types = list(species_types)
         self.layer_index = {s.layer_name: i for i, s in enumerate(self.species_types)}
         self.sprite_sizes = sprite_sizes  # species index -> (width, height) in world px
-        self.core = Columns(used=B, alive=B, species=I, radius=F, generation=I, uid=(np.int64, -1))
+        self.core = Columns(used=B, alive=B, species=I, radius=F, generation=I, uid=(np.int64, -1),
+                            biome=I)
         self.genes = Columns(**{g: (np.float64, 1.0) for g in GENES})
         self.body = Columns(x=F, y=F, vx=F, vy=F, heading=F, speed=F)
         self.command = Columns(heading=F, speed=F)
@@ -144,7 +148,14 @@ class CreatureStore:
             value = value * getattr(self.genes, gene)[rows] ** exponent
         if self.env is not None and key in ENV_EFFECTS:
             value = value * getattr(self.env, ENV_EFFECTS[key])[sp]
+        if key in BIOME_PARAM_EFFECTS:
+            biome = self.core.biome[rows]
+            value = value * np.where(biome >= 0, self.world.biome_effects[BIOME_PARAM_EFFECTS[key]][biome], 1.0)
         return value
+
+    def update_biomes(self, rows):
+        """Which biome each creature stands on (the world calls this every frame)."""
+        self.core.biome[rows] = self.world.biome_at(self.body.x[rows], self.body.y[rows])
 
     def gene_max(self, gene):
         n = self.count
@@ -182,6 +193,7 @@ class CreatureStore:
         c.uid[i] = self._next_uid
         self._next_uid += 1
         c.radius[i] = max(w, h) / 2 * self.genes.size[i]
+        c.biome[i] = int(self.world.biome_at(x, y))
         heading = rng.uniform(0, TWO_PI)
         b.x[i], b.y[i], b.heading[i] = x, y, heading
         b.vx[i] = b.vy[i] = b.speed[i] = 0.0
