@@ -50,16 +50,16 @@ class MetabolismSystem:
         speed = s.body.speed[rows]
         relaxing = s.mind.relaxing[rows]
         moving = (speed > 0) & ~relaxing
-        k = np.log(P["run_stamina_multiplier"][sp]) / np.log(P["run_speed_multiplier"][sp])
+        k = np.log(s.p("run_stamina_multiplier", rows)) / np.log(P["run_speed_multiplier"][sp])
         move_cost = np.where(moving, s.p("walk_stamina_cost", rows) * (speed / P["walk_speed"][sp]) ** k, 0.0)
         healing = relaxing & (health < max_h) & (food > starve_line)
         stamina_cost = (s.p("alive_stamina_cost", rows) + move_cost
-                        + np.where(healing, P["heal_stamina_cost"][sp], 0.0)) * dt
-        food = np.maximum(food - (s.p("food_drain", rows) + np.where(healing, P["heal_food_cost"][sp], 0.0)) * dt, 0.0)
+                        + np.where(healing, s.p("heal_stamina_cost", rows), 0.0)) * dt
+        food = np.maximum(food - (s.p("food_drain", rows) + np.where(healing, s.p("heal_food_cost", rows), 0.0)) * dt, 0.0)
 
         # Digest: food above the starving line turns into stamina
-        eff = P["digest_efficiency"][sp]
-        digest = np.clip(np.minimum(P["digest_rate"][sp] * dt, food - starve_line), 0.0, None)
+        eff = s.p("digest_efficiency", rows)
+        digest = np.clip(np.minimum(s.p("digest_rate", rows) * dt, food - starve_line), 0.0, None)
         digest = np.minimum(digest, np.maximum(max_s - stamina, 0.0) / eff)
         food -= digest
         stamina += digest * eff
@@ -71,7 +71,7 @@ class MetabolismSystem:
         health -= owed * P["muscle_burn"][sp]
         starving = food <= starve_line
         health -= np.where(starving, P["starve_damage"][sp] * dt, 0.0)
-        health = np.minimum(health + np.where(healing, P["heal_rate"][sp] * dt, 0.0), max_h)
+        health = np.minimum(health + np.where(healing, s.p("heal_rate", rows) * dt, 0.0), max_h)
 
         v.health[rows], v.stamina[rows], v.food[rows] = health, stamina, food
         v.reproduction_timer[rows] -= dt
@@ -88,12 +88,12 @@ class MetabolismSystem:
             sp = s.species[rows]
 
         ratio = v.food[rows] / s.p("max_food", rows)
-        v.foraging[rows[ratio < P["hungry_ratio"][sp]]] = True
-        v.foraging[rows[ratio >= P["full_ratio"][sp]]] = False
+        v.foraging[rows[ratio < s.p("hungry_ratio", rows)]] = True
+        v.foraging[rows[ratio >= np.maximum(s.p("full_ratio", rows), s.p("hungry_ratio", rows))]] = False
         # Tiredness: below rest_ratio of stamina until back at rested_ratio
         sratio = v.stamina[rows] / s.p("max_stamina", rows)
-        v.tired[rows[sratio < P["rest_ratio"][sp]]] = True
-        v.tired[rows[sratio >= P["rested_ratio"][sp]]] = False
+        v.tired[rows[sratio < s.p("rest_ratio", rows)]] = True
+        v.tired[rows[sratio >= np.maximum(s.p("rested_ratio", rows), s.p("rest_ratio", rows))]] = False
 
         v.boldness_timer[rows] -= dt
         roll = rows[v.boldness_timer[rows] <= 0]
@@ -127,6 +127,5 @@ class MetabolismSystem:
     def reproduced(self, row):
         """Pay the cost of giving birth and restart the reproduction timer."""
         s = self.store
-        sp = s.species[row]
-        s.vitals.food[row] -= s.params["reproduction_food_cost"][sp]
-        s.vitals.reproduction_timer[row] = s.params["reproduction_interval"][sp]
+        s.vitals.food[row] -= s.p("reproduction_food_cost", row)
+        s.vitals.reproduction_timer[row] = s.p("reproduction_interval", row)

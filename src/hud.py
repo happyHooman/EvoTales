@@ -71,7 +71,7 @@ class Inspector:
     def __init__(self):
         self.uid = -1
         self.row = -1
-        self.text = arcade.Text("", 10, 0, arcade.color.WHITE, 11, multiline=True, width=330)
+        self.text = arcade.Text("", 10, 0, arcade.color.WHITE, 11, multiline=True, width=420)
         self._note = ""
 
     @property
@@ -127,19 +127,23 @@ class Inspector:
             state += ", tired"
         if store.alive[r] and m.stand_timer[r] > 0:
             state += ", standing its ground"
-        gene_text = [f"{g} {getattr(store.genes, g)[r]:.2f}" for g in GENES]
+        # The genes that set this creature apart the most (each is x1.00 for its species)
+        genes = sorted(GENES, key=lambda g: -abs(np.log(getattr(store.genes, g)[r])))[:4]
+        gene_text = [f"{g.replace('_', ' ')} x{getattr(store.genes, g)[r]:.2f}" for g in genes]
         lines = [
             f"{layer[:-1]} #{self.uid}  gen {store.core.generation[r]}",
             f"{state} in {BIOMES[store.core.biome[r]]}" + (f"  - {self._note}" if self._note else ""),
             f"health  {v.health[r]:5.1f} / {store.p('max_health', r):.0f}",
             f"stamina {v.stamina[r]:5.1f} / {store.p('max_stamina', r):.0f}",
             f"food    {v.food[r]:5.1f} / {store.p('max_food', r):.0f}",
-            "genes: " + "  ".join(gene_text),
+            "most unusual genes:",
+            "  " + ",  ".join(gene_text[:2]),
+            "  " + ",  ".join(gene_text[2:]),
             "Esc or click empty ground to stop following",
         ]
         self.text.text = "\n".join(lines)
         height = 19 * len(lines) + 14
         top = window_height - 50
-        arcade.draw_lrbt_rectangle_filled(4, 344, top - height, top, PANEL_BG)
+        arcade.draw_lrbt_rectangle_filled(4, 434, top - height, top, PANEL_BG)
         self.text.y = top - 18
         self.text.draw()

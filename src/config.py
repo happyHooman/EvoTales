@@ -155,8 +155,10 @@ CREATURE_DEFAULTS = {
     "reproduction_food_threshold": 120,
     "reproduction_health_ratio": 0.9,
     "reproduction_food_cost": 55,
-    # Inheritance: newborns copy the parent's genes (speed, stamina, vision,
-    # boldness) with a random change of about this fraction; founders vary too
+    # Inheritance: newborns copy the parent's genes (one per feature: speed, vision,
+    # stamina pool, stomach, digestion, activity costs, recovery, thresholds,
+    # reproduction - see engine/store.py GENES) with a random change of about this
+    # fraction; founders vary too
     "mutation_rate": 0.06,
     "founder_variation": 0.1,
     # Environment

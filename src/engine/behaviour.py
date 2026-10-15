@@ -108,9 +108,9 @@ class BehaviourSystem:
         s = self.store
         P = s.params
         n = s.count
-        margin = float(max(P["vision_range"].max() * s.gene_max("vision"),
+        margin = float(max(P["vision_range"].max() * s.gene_max("vision_range"),
                            (P["avoid_horizon"] * (P["walk_speed"] * P["run_speed_multiplier"]
-                                                  * s.gene_max("speed") + 70)).max() + 40))
+                                                  * s.gene_max("walk_speed") + 70)).max() + 40))
         region = max(REGION_SIZE, margin)
         bx, by = s.body.x, s.body.y
         rx = np.floor(bx[rows] / region).astype(np.int64)
@@ -214,14 +214,16 @@ class BehaviourSystem:
 
         # --- instinct ---
         food, foraging = v.food[rows], v.foraging[rows]
-        tired = v.tired[rows]
+        # Resting only helps if there is food left to digest into stamina; a starving,
+        # exhausted creature has to keep looking for food on its own muscle
+        tired = v.tired[rows] & (food > P["starve_ratio"][rs] * s.p("max_food", rows))
         # Relax when well fed or to heal; a tired creature rests even when hungry
         max_health = s.p("max_health", rows)
-        relaxed = tired | (~foraging & ((food / s.p("max_food", rows) >= P["relaxed_ratio"][rs])
+        relaxed = tired | (~foraging & ((food / s.p("max_food", rows) >= s.p("relaxed_ratio", rows))
                                         | (v.health[rows] < max_health)))
-        can_repro = ((food >= P["reproduction_food_threshold"][rs])
-                     & (food > P["reproduction_food_cost"][rs])
-                     & (v.health[rows] >= P["reproduction_health_ratio"][rs] * max_health)
+        can_repro = ((food >= s.p("reproduction_food_threshold", rows))
+                     & (food > s.p("reproduction_food_cost", rows))
+                     & (v.health[rows] >= s.p("reproduction_health_ratio", rows) * max_health)
                      & (v.reproduction_timer[rows] <= 0))
         if can_repro.any():
             can_repro &= s.populations()[rs] < P["max_population"][rs]
@@ -341,7 +343,7 @@ class BehaviourSystem:
                           stamina_ratio=float(v.stamina[r] / s.p("max_stamina", r)),
                           food_ratio=float(food_ratio),
                           foraging=bool(v.foraging[r]), bold=bool(v.bold[r]),
-                          relaxed=bool(not v.foraging[r] and food_ratio >= P["relaxed_ratio"][sp]),
+                          relaxed=bool(not v.foraging[r] and food_ratio >= s.p("relaxed_ratio", r)),
                           can_reproduce=bool(can_repro), current_target=current,
                           food=food[:5], threats=threats[:3])
         intent: Intent = brain.decide(obs)

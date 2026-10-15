@@ -42,16 +42,29 @@ PARAM_KEYS = [
 # Inherited traits. Each gene is a multiplier around 1.0, copied from the parent
 # with a small random mutation. Each one changes some species parameters, with
 # trade-offs so no gene is free: parameter -> [(gene, exponent), ...]
-GENES = ("speed", "stamina", "vision", "boldness")
-GENE_EFFECTS = {
-    "walk_speed": [("speed", 1.0)],
-    "max_stamina": [("stamina", 1.0)],
-    "vision_range": [("vision", 1.0)],
-    "alive_stamina_cost": [("vision", 0.3)],   # sharp eyes cost upkeep
-    "food_drain": [("stamina", 0.3)],          # so does a big stamina pool
-    "hunger_boldness": [("boldness", 1.0)],
-}
+# Every one of these creature features is its own gene: a multiplier on the species
+# value, inherited from the parent with a small mutation.
+GENES = (
+    "walk_speed", "vision_range",
+    "max_stamina", "max_food",                                   # stamina pool, stomach size
+    "digest_rate", "digest_efficiency",                          # food -> stamina conversion
+    "alive_stamina_cost", "walk_stamina_cost", "run_stamina_multiplier",  # what activities cost
+    "heal_rate", "heal_stamina_cost", "heal_food_cost",          # recovery while relaxing
+    "food_drain",                                                # hunger
+    "hungry_ratio", "full_ratio", "relaxed_ratio", "rest_ratio", "rested_ratio",  # thresholds
+    "hunger_boldness",
+    "reproduction_food_threshold", "reproduction_health_ratio", "reproduction_food_cost",
+    "reproduction_interval",
+)
+GENE_EFFECTS = {gene: [(gene, 1.0)] for gene in GENES}
+# Kept from before: sharp eyes and a big stamina pool cost upkeep
+GENE_EFFECTS["alive_stamina_cost"] = [("alive_stamina_cost", 1.0), ("vision_range", 0.3)]
+GENE_EFFECTS["food_drain"] = [("food_drain", 1.0), ("max_stamina", 0.3)]
 GENE_RANGE = (0.5, 2.0)
+# Fractions stay fractions whatever the genes say
+RATIO_LIMITS = {"hungry_ratio": (0.05, 0.95), "full_ratio": (0.1, 1.0), "relaxed_ratio": (0.05, 1.0),
+                "rest_ratio": (0.0, 0.9), "rested_ratio": (0.05, 1.0), "reproduction_health_ratio": (0.1, 1.0),
+                "hunger_boldness": (0.0, 1.0), "run_stamina_multiplier": (1.0, None)}
 # Parameters the environment scales per species (day/night, seasons): param -> Environment attribute
 ENV_EFFECTS = {"vision_range": "vision", "food_drain": "food_drain"}
 # Parameters the ground under each creature scales: param -> biome effect (see BIOME_CONFIG)
@@ -142,6 +155,8 @@ class CreatureStore:
         value = self.params[key][sp]
         for gene, exponent in GENE_EFFECTS.get(key, ()):
             value = value * getattr(self.genes, gene)[rows] ** exponent
+        if key in RATIO_LIMITS:
+            value = np.clip(value, *RATIO_LIMITS[key])
         if self.env is not None and key in ENV_EFFECTS:
             value = value * getattr(self.env, ENV_EFFECTS[key])[sp]
         if key in BIOME_PARAM_EFFECTS:
@@ -210,7 +225,7 @@ class CreatureStore:
         v.food[i] = cfg["birth_food"] if food is None else food
         v.foraging[i], v.bold[i], v.tired[i], v.hurt_flash[i] = True, False, False, 0.0
         v.boldness_timer[i] = v.corpse_timer[i] = 0.0
-        v.reproduction_timer[i] = cfg["reproduction_interval"]
+        v.reproduction_timer[i] = self.p("reproduction_interval", i)
         return i
 
     def kill(self, rows, cause, leave_corpse):
