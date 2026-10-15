@@ -39,20 +39,21 @@ class MetabolismSystem:
         if not len(rows):
             return
         P, sp = s.params, s.species[rows]
-        max_h, max_s, max_f = P["max_health"][sp], P["max_stamina"][sp], P["max_food"][sp]
+        max_h, max_s, max_f = s.p("max_health", rows), s.p("max_stamina", rows), s.p("max_food", rows)
         starve_line = P["starve_ratio"][sp] * max_f
         health, stamina, food = v.health[rows], v.stamina[rows], v.food[rows]
 
-        # What this step costs
+        # What this step costs (movement is priced against the species' base walk speed,
+        # so a creature born faster pays more for its speed)
         speed = s.body.speed[rows]
         relaxing = s.mind.relaxing[rows]
         moving = (speed > 0) & ~relaxing
         k = np.log(P["run_stamina_multiplier"][sp]) / np.log(P["run_speed_multiplier"][sp])
         move_cost = np.where(moving, P["walk_stamina_cost"][sp] * (speed / P["walk_speed"][sp]) ** k, 0.0)
         healing = relaxing & (health < max_h) & (food > starve_line)
-        stamina_cost = (P["alive_stamina_cost"][sp] + move_cost
+        stamina_cost = (s.p("alive_stamina_cost", rows) + move_cost
                         + np.where(healing, P["heal_stamina_cost"][sp], 0.0)) * dt
-        food = np.maximum(food - (P["food_drain"][sp] + np.where(healing, P["heal_food_cost"][sp], 0.0)) * dt, 0.0)
+        food = np.maximum(food - (s.p("food_drain", rows) + np.where(healing, P["heal_food_cost"][sp], 0.0)) * dt, 0.0)
 
         # Digest: food above the starving line turns into stamina
         eff = P["digest_efficiency"][sp]
@@ -83,11 +84,11 @@ class MetabolismSystem:
                 return
             sp = s.species[rows]
 
-        ratio = v.food[rows] / P["max_food"][sp]
+        ratio = v.food[rows] / s.p("max_food", rows)
         v.foraging[rows[ratio < P["hungry_ratio"][sp]]] = True
         v.foraging[rows[ratio >= P["full_ratio"][sp]]] = False
         # Tiredness: below rest_ratio of stamina until back at rested_ratio
-        sratio = v.stamina[rows] / P["max_stamina"][sp]
+        sratio = v.stamina[rows] / s.p("max_stamina", rows)
         v.tired[rows[sratio < P["rest_ratio"][sp]]] = True
         v.tired[rows[sratio >= P["rested_ratio"][sp]]] = False
 
@@ -107,7 +108,7 @@ class MetabolismSystem:
     def eat(self, row, amount):
         """Food goes into the food bar (digestion turns it into stamina over time)."""
         s = self.store
-        cap = s.params["max_food"][s.species[row]]
+        cap = s.p("max_food", row)
         s.vitals.food[row] = min(cap, s.vitals.food[row] + amount)
 
     def damage(self, rows, amounts, cause):

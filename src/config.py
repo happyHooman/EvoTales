@@ -113,10 +113,15 @@ CREATURE_DEFAULTS = {
     "reproduction_food_threshold": 120,
     "reproduction_health_ratio": 0.9,
     "reproduction_food_cost": 55,
+    # Inheritance: newborns copy the parent's genes (size, speed, stamina, vision,
+    # boldness) with a random change of about this fraction; founders vary too
+    "mutation_rate": 0.06,
+    "founder_variation": 0.1,
     # Food chain: layers this creature eats. Threats are derived from other species' diets.
     "diet": [],
     "nutrition": 60,               # food a predator gains from eating this creature
     "corpse_duration": 20.0,       # seconds a dead body stays around and can still be eaten
+    "reintroduce_after": 60.0,     # an extinct species gets new founders after this many s (0 = never)
 }
 
 # Herbivores: slow but enduring

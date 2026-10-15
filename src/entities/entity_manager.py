@@ -51,6 +51,7 @@ class EntityManager():
         self.creatures = CreatureEngine(self, CREATURE_TYPES, sizes)
 
         self.stats: Counter[str] = Counter()
+        self._extinct_for: dict[str, float] = {}
         self._removals: list = []
         self._plant_time = 0.0
         Plant._pending_seeds = []  # a restart must not inherit seeds from the old world
@@ -81,7 +82,31 @@ class EntityManager():
             Plant.process_pending_seeds(self)
 
         self.creatures.step(delta_time)
+        self._rescue_extinct(delta_time)
         self._flush_removals()
+
+    def _rescue_extinct(self, dt):
+        """A species gone for reintroduce_after seconds gets a fresh group of founders
+        (0 = let it stay extinct)."""
+        for c in CREATURE_TYPES:
+            delay = c.config["reintroduce_after"]
+            if delay <= 0 or self.population(c.layer_name) > 0:
+                self._extinct_for[c.layer_name] = 0.0
+                continue
+            self._extinct_for[c.layer_name] = self._extinct_for.get(c.layer_name, 0.0) + dt
+            if self._extinct_for[c.layer_name] >= delay:
+                self._extinct_for[c.layer_name] = 0.0
+                self.record(f"{c.layer_name} reintroduced")
+                self._spawn_founders(c)
+
+    def _spawn_founders(self, creature_type):
+        cfg = creature_type.config
+        for _ in range(int(cfg["initial_count"])):
+            pos = self.random_free_position(cfg["bounds_padding"])
+            if pos is not None:
+                row = self.creatures.spawn(creature_type.layer_name, *pos)
+                # Stagger the first births so the founders don't all reproduce at once
+                self.creatures.store.vitals.reproduction_timer[row] *= random.uniform(0.3, 1.0)
 
     def get_map_size(self):
         return self.tile_map.width * self.tile_map.tile_width, self.tile_map.height * self.tile_map.tile_height
@@ -89,13 +114,7 @@ class EntityManager():
     def spawn_initial_population(self):
         Plant.spawn_initial(self)
         for creature_type in CREATURE_TYPES:
-            cfg = creature_type.config
-            for _ in range(int(cfg["initial_count"])):
-                pos = self.random_free_position(cfg["bounds_padding"])
-                if pos is not None:
-                    row = self.creatures.spawn(creature_type.layer_name, *pos)
-                    # Stagger the first births so the founders don't all reproduce at once
-                    self.creatures.store.vitals.reproduction_timer[row] *= random.uniform(0.3, 1.0)
+            self._spawn_founders(creature_type)
 
     # ------------------------------------------------------- world services
 

@@ -39,7 +39,8 @@ CREATURE_KEYS = [
     "hunger_boldness", "boldness_interval",
     "reproduction_interval", "reproduction_food_threshold", "reproduction_health_ratio",
     "reproduction_food_cost",
-    "nutrition", "corpse_duration", "diet",
+    "mutation_rate", "founder_variation",
+    "nutrition", "corpse_duration", "reintroduce_after", "diet",
 ]
 # Only take effect when the world is rebuilt
 RESTART_ONLY_KEYS = {"initial_count", "min_spacing"}

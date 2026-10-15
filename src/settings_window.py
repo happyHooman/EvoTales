@@ -54,6 +54,9 @@ LABELS = {
     "reproduction_food_cost": "Reproduction food cost",
     "boldness_interval": "Boldness re-roll (s)",
     "corpse_duration": "Corpse duration (s)",
+    "mutation_rate": "Mutation at birth",
+    "reintroduce_after": "Reintroduce if extinct after (s)",
+    "founder_variation": "Founder variation (on restart)",
 }
 TOOLTIPS = {
     "run_speed_multiplier": "Running speed = walk speed x this",
@@ -67,7 +70,9 @@ TOOLTIPS = {
     "muscle_burn": "When stamina is empty, each stamina point still needed costs this much health",
     "digest_rate": "Food turned into stamina per second, while stamina isn't full",
     "hunger_boldness": "Chance (with an empty food bar) that hunger beats fear of a predator that isn't chasing",
-    "nutrition": "Food a predator gains from eating this creature",
+    "nutrition": "Food a predator gains from eating this creature (scaled by its size gene)",
+    "reintroduce_after": "If a species dies out, new founders arrive after this many seconds (0 = stays extinct)",
+    "mutation_rate": "Typical change of each gene (size, speed, stamina, vision, boldness) from parent to child",
     "avoid_horizon": "How far ahead creatures predict each other's paths to avoid bumping (0 = off)",
 }
 # Arrow-button step per setting. Integers stay integers.
@@ -87,7 +92,8 @@ STEPS = {
     "reproduction_interval": 1.0, "reproduction_food_threshold": 5, "reproduction_health_ratio": 0.05,
     "reproduction_food_cost": 5,
     "hunger_boldness": 0.05, "boldness_interval": 0.5,
-    "nutrition": 5, "corpse_duration": 1.0,
+    "nutrition": 5, "corpse_duration": 1.0, "mutation_rate": 0.01, "founder_variation": 0.01,
+    "reintroduce_after": 10.0,
 }
 PLANT_STEPS = {"initial_count": 10}
 # Decimal point and no thousands separators, whatever the system locale

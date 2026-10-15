@@ -88,8 +88,9 @@ class BehaviourSystem:
         s = self.store
         P = s.params
         n = s.count
-        margin = float(max(P["vision_range"].max(),
-                           (P["avoid_horizon"] * (P["walk_speed"] * P["run_speed_multiplier"] + 70)).max() + 40))
+        margin = float(max(P["vision_range"].max() * s.gene_max("vision"),
+                           (P["avoid_horizon"] * (P["walk_speed"] * P["run_speed_multiplier"]
+                                                  * s.gene_max("speed") + 70)).max() + 40))
         region = max(REGION_SIZE, margin)
         bx, by = s.body.x, s.body.y
         rx = np.floor(bx[rows] / region).astype(np.int64)
@@ -112,7 +113,7 @@ class BehaviourSystem:
         s, m, v = self.store, self.store.mind, self.store.vitals
         P = s.params
         rs = s.species[rows]
-        vision = P["vision_range"][rs]
+        vision = s.p("vision_range", rows)
         vision2 = (vision * vision)[:, None]
         x, y = s.body.x[rows], s.body.y[rows]
         ar = np.arange(len(rows))
@@ -189,11 +190,12 @@ class BehaviourSystem:
         food, foraging = v.food[rows], v.foraging[rows]
         tired = v.tired[rows]
         # Relax when well fed or to heal; a tired creature rests even when hungry
-        relaxed = tired | (~foraging & ((food / P["max_food"][rs] >= P["relaxed_ratio"][rs])
-                                        | (v.health[rows] < P["max_health"][rs])))
+        max_health = s.p("max_health", rows)
+        relaxed = tired | (~foraging & ((food / s.p("max_food", rows) >= P["relaxed_ratio"][rs])
+                                        | (v.health[rows] < max_health)))
         can_repro = ((food >= P["reproduction_food_threshold"][rs])
                      & (food > P["reproduction_food_cost"][rs])
-                     & (v.health[rows] >= P["reproduction_health_ratio"][rs] * P["max_health"][rs])
+                     & (v.health[rows] >= P["reproduction_health_ratio"][rs] * max_health)
                      & (v.reproduction_timer[rows] <= 0))
         if can_repro.any():
             can_repro &= s.populations()[rs] < P["max_population"][rs]
@@ -278,11 +280,11 @@ class BehaviourSystem:
                    for j in np.nonzero(threat_row)[0]]
         food.sort(key=lambda p: p.distance)
         threats.sort(key=lambda p: p.distance)
-        food_ratio = v.food[r] / P["max_food"][sp]
+        food_ratio = v.food[r] / s.p("max_food", r)
         current = (("creature", int(m.target_creature[r])) if m.target_creature[r] >= 0 else
                    ("plant", int(m.target_plant[r])) if m.target_plant[r] >= 0 else None)
-        obs = Observation(health_ratio=float(v.health[r] / P["max_health"][sp]),
-                          stamina_ratio=float(v.stamina[r] / P["max_stamina"][sp]),
+        obs = Observation(health_ratio=float(v.health[r] / s.p("max_health", r)),
+                          stamina_ratio=float(v.stamina[r] / s.p("max_stamina", r)),
                           food_ratio=float(food_ratio),
                           foraging=bool(v.foraging[r]), bold=bool(v.bold[r]),
                           relaxed=bool(not v.foraging[r] and food_ratio >= P["relaxed_ratio"][sp]),
@@ -363,7 +365,7 @@ class BehaviourSystem:
         tc, tp = int(m.target_creature[r]), int(m.target_plant[r])
         gain = 0.0
         if tc >= 0 and s.used[tc]:
-            gain = s.params["nutrition"][s.species[tc]]
+            gain = s.p("nutrition", tc)
             if s.alive[tc]:
                 s.kill([tc], f"eaten by {s.species_type(r).layer_name}", leave_corpse=False)
             else:
@@ -391,7 +393,7 @@ class BehaviourSystem:
         self.metabolism.reproduced(r)
         name = s.species_type(r).layer_name
         self.world.record(f"{name} born")
-        s.spawn(name, cx, cy)
+        s.spawn(name, cx, cy, parent=r)
 
     # ----------------------------------------------------------------- steer
 

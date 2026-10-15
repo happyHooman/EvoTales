@@ -8,6 +8,7 @@ has exactly one writer, so it is always clear who changed what:
     store.command  heading, speed                               -> BehaviourSystem (what physics should do)
     store.mind     action, targets, gait, timers, steering      -> BehaviourSystem
     store.vitals   health, stamina, food, moods, timers         -> MetabolismSystem
+    store.genes    inherited trait multipliers                  -> set at birth only
 """
 import math
 
@@ -31,7 +32,25 @@ PARAM_KEYS = [
     "reproduction_interval", "reproduction_food_threshold", "reproduction_health_ratio",
     "reproduction_food_cost",
     "nutrition", "corpse_duration", "max_population",
+    "mutation_rate", "founder_variation",
 ]
+
+# Inherited traits. Each gene is a multiplier around 1.0, copied from the parent
+# with a small random mutation. Each one changes some species parameters, with
+# trade-offs so no gene is free: parameter -> [(gene, exponent), ...]
+GENES = ("size", "speed", "stamina", "vision", "boldness")
+GENE_EFFECTS = {
+    "walk_speed": [("speed", 1.0), ("size", -0.2)],      # big bodies are a bit slower
+    "max_health": [("size", 1.0)],
+    "max_food": [("size", 0.5)],
+    "nutrition": [("size", 1.0)],                         # big prey feeds more
+    "max_stamina": [("stamina", 1.0)],
+    "vision_range": [("vision", 1.0)],
+    "alive_stamina_cost": [("size", 1.0), ("vision", 0.3)],  # big bodies and sharp eyes cost upkeep
+    "food_drain": [("size", 1.0), ("stamina", 0.3)],
+    "hunger_boldness": [("boldness", 1.0)],
+}
+GENE_RANGE = (0.5, 2.0)
 
 # Action codes (store.mind.action)
 WANDER, RELAX, EAT, FLEE = 0, 1, 2, 3
@@ -62,7 +81,8 @@ class CreatureStore:
         self.species_types = list(species_types)
         self.layer_index = {s.layer_name: i for i, s in enumerate(self.species_types)}
         self.sprite_sizes = sprite_sizes  # species index -> (width, height) in world px
-        self.core = Columns(used=B, alive=B, species=I, radius=F)
+        self.core = Columns(used=B, alive=B, species=I, radius=F, generation=I)
+        self.genes = Columns(**{g: (np.float64, 1.0) for g in GENES})
         self.body = Columns(x=F, y=F, vx=F, vy=F, heading=F, speed=F)
         self.command = Columns(heading=F, speed=F)
         self.mind = Columns(action=I, target_creature=I, target_plant=I, running=B, relaxing=B,
@@ -84,7 +104,7 @@ class CreatureStore:
     radius = property(lambda self: self.core.radius)
 
     def _grow(self, capacity):
-        for group in (self.core, self.body, self.command, self.mind, self.vitals):
+        for group in (self.core, self.body, self.command, self.mind, self.vitals, self.genes):
             group.grow(capacity)
         self.capacity = capacity
 
@@ -103,8 +123,16 @@ class CreatureStore:
                     self.eats[a, self.layer_index[food]] = True
 
     def p(self, key, rows):
-        """A species parameter, per row."""
-        return self.params[key][self.core.species[rows]]
+        """A parameter per row: the species value, shaped by each creature's genes."""
+        value = self.params[key][self.core.species[rows]]
+        for gene, exponent in GENE_EFFECTS.get(key, ()):
+            value = value * getattr(self.genes, gene)[rows] ** exponent
+        return value
+
+    def gene_max(self, gene):
+        n = self.count
+        live = self.core.alive[:n]
+        return float(getattr(self.genes, gene)[:n][live].max()) if live.any() else 1.0
 
     def species_type(self, row):
         return self.species_types[self.core.species[row]]
@@ -114,7 +142,8 @@ class CreatureStore:
 
     # ------------------------------------------------------------- lifecycle
 
-    def spawn(self, layer_name, x, y, food=None):
+    def spawn(self, layer_name, x, y, food=None, parent=None):
+        """New creature. With a parent it inherits mutated genes; founders get random ones."""
         if self._free:
             i = self._free.pop()
         else:
@@ -127,7 +156,13 @@ class CreatureStore:
         w, h = self.sprite_sizes[s]
         rng = np.random
         c, b, cmd, m, v = self.core, self.body, self.command, self.mind, self.vitals
-        c.species[i], c.used[i], c.alive[i], c.radius[i] = s, True, True, max(w, h) / 2
+        sigma = cfg["mutation_rate"] if parent is not None else cfg["founder_variation"]
+        for gene in GENES:
+            base = getattr(self.genes, gene)[parent] if parent is not None else 1.0
+            getattr(self.genes, gene)[i] = np.clip(base * np.exp(rng.normal(0, sigma)), *GENE_RANGE)
+        c.generation[i] = c.generation[parent] + 1 if parent is not None else 0
+        c.species[i], c.used[i], c.alive[i] = s, True, True
+        c.radius[i] = max(w, h) / 2 * self.genes.size[i]
         heading = rng.uniform(0, TWO_PI)
         b.x[i], b.y[i], b.heading[i] = x, y, heading
         b.vx[i] = b.vy[i] = b.speed[i] = 0.0
@@ -140,8 +175,8 @@ class CreatureStore:
         m.think_timer[i] = rng.uniform(0, cfg["think_interval"])
         m.wander_timer[i] = rng.uniform(0, cfg["wander_turn_interval"])
         m.detour_timer[i] = 0.0
-        v.health[i] = cfg["max_health"]
-        v.stamina[i] = cfg["max_stamina"] * cfg["birth_stamina_ratio"]
+        v.health[i] = self.p("max_health", i)
+        v.stamina[i] = self.p("max_stamina", i) * cfg["birth_stamina_ratio"]
         v.food[i] = cfg["birth_food"] if food is None else food
         v.foraging[i], v.bold[i], v.tired[i] = True, False, False
         v.boldness_timer[i] = v.corpse_timer[i] = 0.0

@@ -114,7 +114,7 @@ class Overlays:
         parts = []
         if self.show_fov:
             ring = np.empty((len(rows), FLOATS_PER_INSTANCE), "f4")
-            d = 2 * store.params["vision_range"][sp]
+            d = 2 * store.p("vision_range", rows)
             colors = np.array([tuple(c / 255 for c in FOV_COLORS.get(layer, (255, 255, 255))) + (1.0,)
                                for layer in self._layers], "f4")
             ring[:, 0], ring[:, 1], ring[:, 2], ring[:, 3] = x, y, d, d
@@ -126,9 +126,9 @@ class Overlays:
             vit, P = store.vitals, store.params
             top = y + store.radius[rows] + 6
             for k, (values, maximum, color) in enumerate((
-                    (vit.health[rows], P["max_health"][sp], HEALTH_COLOR),
-                    (vit.stamina[rows], P["max_stamina"][sp], STAMINA_COLOR),
-                    (vit.food[rows], P["max_food"][sp], FOOD_COLOR))):
+                    (vit.health[rows], store.p("max_health", rows), HEALTH_COLOR),
+                    (vit.stamina[rows], store.p("max_stamina", rows), STAMINA_COLOR),
+                    (vit.food[rows], store.p("max_food", rows), FOOD_COLOR))):
                 ratio = np.clip(values / maximum, 0, 1)
                 by = top + (2 - k) * (BAR_HEIGHT + 1)
                 bg = np.empty((len(rows), FLOATS_PER_INSTANCE), "f4")

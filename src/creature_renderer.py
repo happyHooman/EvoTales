@@ -11,7 +11,7 @@ from sprite_config import SPRITE_ANGLE_OFFSET
 from sprite_manager import sprite_manager
 
 CORPSE_COLOR = (80 / 255, 80 / 255, 80 / 255, 200 / 255)
-FLOATS_PER_INSTANCE = 7  # center(2) angle(1) color(4)
+FLOATS_PER_INSTANCE = 8  # center(2) angle(1) scale(1) color(4)
 
 VERTEX_SHADER = """
 #version 330
@@ -24,13 +24,14 @@ uniform vec2 half_size;
 in vec2 in_corner;      // unit quad, -1..1
 in vec2 in_center;
 in float in_angle;      // radians, counter-clockwise
+in float in_scale;      // the creature's size gene
 in vec4 in_color;
 
 out vec2 v_uv;
 out vec4 v_color;
 
 void main() {
-    vec2 local = in_corner * half_size;
+    vec2 local = in_corner * half_size * in_scale;
     float c = cos(in_angle), s = sin(in_angle);
     vec2 pos = in_center + vec2(c * local.x - s * local.y, s * local.x + c * local.y);
     gl_Position = window.projection * window.view * vec4(pos, 0.0, 1.0);
@@ -80,7 +81,8 @@ class CreatureRenderer:
         self.instances = ctx.buffer(reserve=capacity * FLOATS_PER_INSTANCE * 4, usage="stream")
         self.geometry = ctx.geometry(
             [BufferDescription(self.corners, "2f", ["in_corner"]),
-             BufferDescription(self.instances, "2f 1f 4f", ["in_center", "in_angle", "in_color"], instanced=True)],
+             BufferDescription(self.instances, "2f 1f 1f 4f", ["in_center", "in_angle", "in_scale", "in_color"],
+                               instanced=True)],
             mode=ctx.TRIANGLE_STRIP,
         )
 
@@ -108,10 +110,11 @@ class CreatureRenderer:
             data[:, 1] = body.y[rows]
             # Sprite art faces down; rotate so it faces the heading
             data[:, 2] = body.heading[rows] + SPRITE_ANGLE_OFFSET
-            data[:, 3:7] = 1.0
+            data[:, 3] = store.genes.size[rows]
+            data[:, 4:8] = 1.0
             dead = ~alive[rows]
             if dead.any():
-                data[dead, 3:7] = CORPSE_COLOR
+                data[dead, 4:8] = CORPSE_COLOR
             self.instances.write(data.tobytes())
             texture.use(0)
             self.program["tex"] = 0
