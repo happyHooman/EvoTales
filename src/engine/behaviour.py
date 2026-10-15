@@ -25,6 +25,8 @@ overrides fear):
 Hunters bite living prey (attack_damage every attack_cooldown s) rather than
 swallowing it; prey bites back, harder with its herd around it, and hunters
 prefer prey that isn't in a crowd. Roaming creatures drift toward their herd.
+Prey running from a predator give alarm calls; peers that hear one flee the
+same way for a while, even if they can't see the danger.
 Creatures reaching the same food item squabble: the strongest (dominance x size
 x health) keeps it; the rest take a bite and stay away from it for yield_time.
 5. Otherwise roam.
@@ -46,6 +48,8 @@ HALF_PI = math.pi / 2
 FLEE_OFFSETS = np.array([0.0] + [s * k * math.pi / 12 for k in range(1, 7) for s in (1, -1)])
 DETOUR_OFFSETS = np.array([0.8, -0.8, 1.6, -1.6, 2.4, -2.4, math.pi])
 DETOUR_TIME = 0.8
+CALL_COOLDOWN = 2.0  # seconds between one creature's alarm calls
+CALL_FLASH = 0.6     # seconds the call ripple is shown
 # Thinkers are batched by map region of this size (at least their vision range)
 REGION_SIZE = 800.0
 
@@ -79,6 +83,9 @@ class BehaviourSystem:
             return
         m.attack_timer[rows] -= dt
         m.yield_timer[rows] -= dt
+        m.alarm_timer[rows] -= dt
+        m.call_timer[rows] -= dt
+        m.call_flash[rows] -= dt
         self._build_herd_map(rows)
         m.think_timer[rows] -= dt
         due = rows[m.think_timer[rows] <= 0]
@@ -215,7 +222,9 @@ class BehaviourSystem:
             can_repro &= s.populations()[rs] < P["max_population"][rs]
 
         hunger_wins = v.bold[rows] & foraging & has_food & ~any_attacking
-        flee = has_threat & ~hunger_wins
+        # A peer's alarm call counts as danger even without seeing the predator
+        alarmed = (m.alarm_timer[rows] > 0) & ~has_threat
+        flee = (has_threat | alarmed) & ~hunger_wins
         repro = ~flee & can_repro
         eat = ~flee & ~repro & ~tired & foraging & has_food
         relax = ~flee & ~repro & ~eat & relaxed
@@ -256,7 +265,7 @@ class BehaviourSystem:
             prey_moving[has_tc] = s.alive[t] & (
                 s.body.speed[t] > s.p("walk_speed", t) * s.p("relax_speed_ratio", t) * 1.01) & (
                 gap2 <= s.p("sprint_range", hr) ** 2)
-        m.running[rows] = ((action == EAT) & prey_moving) | ((action == FLEE) & any_alarming)
+        m.running[rows] = ((action == EAT) & prey_moving) | ((action == FLEE) & (any_alarming | alarmed))
         for j, run in brain_runs.items():
             m.running[rows[j]] = run and action[j] in (EAT, FLEE)
 
@@ -265,10 +274,13 @@ class BehaviourSystem:
         if len(fr):
             w = np.where(is_threat[fr], 1.0 / np.maximum(d2[fr], 1.0), 0.0)
             away = np.arctan2(-(dy[fr] * w).sum(axis=1), -(dx[fr] * w).sum(axis=1))
+            away = np.where(has_threat[fr], away, m.alarm_heading[rows[fr]])  # heard, not seen
             m.flee_away[rows[fr]] = away
             heading = self.physics.free_heading(rows[fr], away, FLEE_OFFSETS)
             m.goal[rows[fr]] = np.where(np.isnan(heading), away, heading)
             m.detour_timer[rows[fr]] = 0.0
+
+        self._alarm_calls(rows, cols, d2, (action == FLEE) & any_alarming)
 
         nf = rows[action != FLEE]
         if len(nf):
@@ -277,6 +289,29 @@ class BehaviourSystem:
 
         for r in rows[repro]:
             self._give_birth(int(r))
+
+    def _alarm_calls(self, rows, cols, d2, running_scared):
+        """Creatures running from a predator call out; peers of their species within
+        call_range flee the same way for alarm_duration, even if they can't see it."""
+        s, m = self.store, self.store.mind
+        call_range = s.p("call_range", rows)
+        callers = np.nonzero(running_scared & (call_range > 0) & (m.call_timer[rows] <= 0))[0]
+        if not len(callers):
+            return
+        cr = rows[callers]
+        m.call_timer[cr] = CALL_COOLDOWN
+        m.call_flash[cr] = CALL_FLASH
+        hears = ((d2[callers] <= (call_range[callers] ** 2)[:, None])
+                 & (s.species[cols][None, :] == s.species[cr][:, None])
+                 & s.alive[cols][None, :] & (cols[None, :] != cr[:, None]))
+        heard_by = hears.any(axis=0)
+        if not heard_by.any():
+            return
+        caller_of = np.argmax(hears, axis=0)[heard_by]  # first caller each listener heard
+        listeners = cols[heard_by]
+        m.alarm_timer[listeners] = s.p("alarm_duration", listeners)
+        m.alarm_heading[listeners] = m.flee_away[cr[caller_of]]
+        self.world.record(f"{s.species_type(int(cr[0])).layer_name} alarm calls")
 
     def _ask_brain(self, r, brain, cols, threat_row, attack_row, food_row, d2_row, tp, can_repro):
         """Build an Observation for one brain-driven creature; translate its Intent."""

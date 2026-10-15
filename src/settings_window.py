@@ -75,6 +75,8 @@ LABELS = {
     "contest_damage": "Squabble bite damage",
     "contest_range": "Squabble range (px)",
     "yield_time": "Loser stays away (s)",
+    "call_range": "Alarm call range (px, 0 = none)",
+    "alarm_duration": "Flees after hearing a call (s)",
     "founder_variation": "Founder variation (on restart)",
 }
 TOOLTIPS = {
@@ -118,6 +120,7 @@ STEPS = {
     "attack_damage": 1, "defense_damage": 1, "attack_cooldown": 0.1,
     "herd_radius": 5, "herd_bonus": 0.05, "crowd_penalty": 0.05, "herd_cohesion": 0.05,
     "dominance": 0.1, "contest_damage": 1, "contest_range": 5, "yield_time": 0.5,
+    "call_range": 10, "alarm_duration": 0.5,
 }
 PLANT_STEPS = {"initial_count": 10}
 # Decimal point and no thousands separators, whatever the system locale

@@ -18,7 +18,7 @@ FOV_COLORS = {
     "smarties": (170, 140, 255),
     "carnivores": (255, 90, 70),
 }
-RECT, RING = 0.0, 1.0
+RECT, RING, CALL = 0.0, 1.0, 2.0
 FLOATS_PER_INSTANCE = 9  # center(2) size(2) color(4) shape(1)
 
 VERTEX_SHADER = """
@@ -62,9 +62,14 @@ void main() {
         out_color = v_color;
         return;
     }
-    float d = length(v_uv);         // ring: faint fill, stronger outline
+    float d = length(v_uv);
     if (d > 1.0) discard;
-    float alpha = d > 1.0 - v_edge ? 0.6 : 0.09;
+    if (v_shape > 1.5) {            // alarm call: thin ring that fades out
+        if (d < 1.0 - v_edge) discard;
+        out_color = v_color;
+        return;
+    }
+    float alpha = d > 1.0 - v_edge ? 0.6 : 0.09;   // field of view: faint fill, stronger outline
     out_color = vec4(v_color.rgb, alpha);
 }
 """
@@ -83,7 +88,7 @@ class Overlays:
 
     @property
     def enabled(self) -> bool:
-        return self.show_fov or self.show_energy
+        return True  # alarm call ripples are always shown
 
     def configure(self, show_fov: bool, show_energy: bool) -> None:
         self.show_fov, self.show_energy = bool(show_fov), bool(show_energy)
@@ -112,6 +117,19 @@ class Overlays:
             return np.zeros((0, FLOATS_PER_INSTANCE), "f4")
         x, y, sp = store.body.x[rows], store.body.y[rows], store.species[rows]
         parts = []
+        # Alarm calls: an expanding, fading ring around the caller
+        calling = store.mind.call_flash[rows] > 0
+        if calling.any():
+            from engine.behaviour import CALL_FLASH
+            c = rows[calling]
+            t = 1.0 - store.mind.call_flash[c] / CALL_FLASH        # 0 -> 1 over the flash
+            ring = np.empty((len(c), FLOATS_PER_INSTANCE), "f4")
+            d = 2 * store.p("call_range", c) * (0.3 + 0.7 * t)
+            ring[:, 0], ring[:, 1], ring[:, 2], ring[:, 3] = store.body.x[c], store.body.y[c], d, d
+            ring[:, 4:7] = (1.0, 0.95, 0.6)
+            ring[:, 7] = 1.0 - t
+            ring[:, 8] = CALL
+            parts.append(ring)
         if self.show_fov:
             ring = np.empty((len(rows), FLOATS_PER_INSTANCE), "f4")
             d = 2 * store.p("vision_range", rows)
@@ -141,7 +159,7 @@ class Overlays:
                 fill[:, 4:8] = color
                 fill[:, 8] = RECT
                 parts += [bg, fill]
-        return np.concatenate(parts)
+        return np.concatenate(parts) if parts else np.zeros((0, FLOATS_PER_INSTANCE), "f4")
 
     def draw(self) -> None:
         if not self.enabled or self._world is None:

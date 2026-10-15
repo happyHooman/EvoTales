@@ -46,6 +46,7 @@ CREATURE_KEYS = [
     "attack_damage", "defense_damage", "attack_cooldown",
     "herd_radius", "herd_bonus", "crowd_penalty", "herd_cohesion",
     "dominance", "contest_damage", "contest_range", "yield_time",
+    "call_range", "alarm_duration",
     "nutrition", "corpse_duration", "reintroduce_after", "diet",
 ]
 # Only take effect when the world is rebuilt

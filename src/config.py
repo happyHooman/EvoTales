@@ -138,6 +138,9 @@ CREATURE_DEFAULTS = {
     "herd_bonus": 0.5,             # each herd peer nearby adds this much to the defense bite
     "crowd_penalty": 0.0,          # hunters see prey in a crowd as this much further away, per peer
     "herd_cohesion": 0.0,          # 0..1: how strongly roaming creatures drift toward their herd
+    # Alarm calls: prey running from a predator calls out to its own species
+    "call_range": 0,               # how far a call carries, px (0 = this species doesn't call)
+    "alarm_duration": 3.0,         # seconds peers flee after hearing a call
     # Squabbles over the same food item
     "dominance": 1.0,              # species strength in squabbles (x size gene x health)
     "contest_damage": 4,           # bite the winner gives each loser
@@ -158,6 +161,7 @@ HERBIVORE_CONFIG = {
     "max_stamina": 120,
     "defense_damage": 4,
     "herd_bonus": 0.6,
+    "call_range": 120,
     "herd_cohesion": 0.4,
     "diet": ["plants"],
     "nutrition": 80,
@@ -211,6 +215,7 @@ SMARTIE_CONFIG = {
     "attack_damage": 15,
     "defense_damage": 8,
     "dominance": 1.3,
+    "call_range": 140,
     "crowd_penalty": 0.3,
     "herd_cohesion": 0.2,
     "diet": ["plants", "herbivores"],  # herbivores (nutrition 80) beat any plant (max 50)
