@@ -25,6 +25,8 @@ overrides fear):
 Hunters bite living prey (attack_damage every attack_cooldown s) rather than
 swallowing it; prey bites back, harder with its herd around it, and hunters
 prefer prey that isn't in a crowd. Roaming creatures drift toward their herd.
+Creatures reaching the same food item squabble: the strongest (dominance x size
+x health) keeps it; the rest take a bite and stay away from it for yield_time.
 5. Otherwise roam.
 
 New activities plug in here: a new action code, a branch in _decide_region,
@@ -76,6 +78,7 @@ class BehaviourSystem:
         if not len(rows):
             return
         m.attack_timer[rows] -= dt
+        m.yield_timer[rows] -= dt
         self._build_herd_map(rows)
         m.think_timer[rows] -= dt
         due = rows[m.think_timer[rows] <= 0]
@@ -147,7 +150,8 @@ class BehaviourSystem:
         if len(cols) and len(hr):
             # Herds confuse hunters: prey in a crowd looks further away than it is
             crowd = 1.0 + P["crowd_penalty"][rs[hr]][:, None] * (s.alive[cols] * self.herd_peers(cols))[None, :]
-            cfood_d2 = np.where(is_cfood[hr], d2[hr] * crowd, np.inf)
+            banned = cols[None, :] == np.where(m.yield_timer[rows[hr]] > 0, m.banned_creature[rows[hr]], -1)[:, None]
+            cfood_d2 = np.where(is_cfood[hr] & ~banned, d2[hr] * crowd, np.inf)
             bc = np.argmin(cfood_d2, axis=1)
             best_c_d2[hr], best_c[hr] = cfood_d2[np.arange(len(hr)), bc], cols[bc]
 
@@ -165,8 +169,11 @@ class BehaviourSystem:
             pclaim = claim[pcols]
             c = np.maximum(pclaim, 0)
             claim_live = (pclaim >= 0) & s.alive[c] & (m.target_plant[c] == pcols)
-            claimed_by_other = claim_live[None, :] & (pclaim[None, :] != rows[pr, None])
-            ok = edible[pcols][None, :] & ~claimed_by_other & (pd2 <= vision2[pr])
+            # ...unless they are weaker: then it comes down to a contest at the plant
+            weaker = self.strength(c)[None, :] < self.strength(rows[pr])[:, None]
+            claimed_by_other = claim_live[None, :] & (pclaim[None, :] != rows[pr, None]) & ~weaker
+            banned = pcols[None, :] == np.where(m.yield_timer[rows[pr]] > 0, m.banned_plant[rows[pr]], -1)[:, None]
+            ok = edible[pcols][None, :] & ~claimed_by_other & ~banned & (pd2 <= vision2[pr])
             pd2 = np.where(ok, pd2, np.inf)
             bp = np.argmin(pd2, axis=1)
             best_p[pr] = pcols[bp]
@@ -372,6 +379,11 @@ class BehaviourSystem:
         touching = ddx * ddx + ddy * ddy <= reach * reach
         steer = ~touching & (m.detour_timer[e] <= 0)  # unless detouring around water
         m.goal[e[steer]] = np.arctan2(ddy[steer], ddx[steer])
+        near = ddx * ddx + ddy * ddy <= (reach + s.p("contest_range", e)) ** 2
+        if near.sum() > 1:
+            losers = self._contest(e[near])
+            if len(losers):
+                touching &= ~np.isin(e, losers)
         for j in np.nonzero(touching)[0]:
             r = int(e[j])
             t = int(m.target_creature[r])
@@ -379,6 +391,42 @@ class BehaviourSystem:
                 self._fight(r, t)
             else:
                 self._consume(r)
+
+    def strength(self, rows):
+        """How a creature fares in a squabble over food: species dominance x size x health."""
+        s = self.store
+        return s.p("dominance", rows) * s.genes.size[rows] * s.vitals.health[rows] / s.p("max_health", rows)
+
+    def _contest(self, rows):
+        """Creatures close to the same food item squabble: the strongest keeps it; the
+        others take a bite of damage, give it up, and won't come back to it for a while.
+        Returns the losers."""
+        s, m = self.store, self.store.mind
+        key = np.where(m.target_plant[rows] >= 0, 2 * m.target_plant[rows], 2 * m.target_creature[rows] + 1)
+        order = np.lexsort((-self.strength(rows), key))
+        rows, key = rows[order], key[order]
+        first = np.r_[True, key[1:] != key[:-1]]
+        winner = rows[np.maximum.accumulate(np.where(first, np.arange(len(rows)), 0))]
+        losers = rows[~first]
+        if not len(losers):
+            return losers
+        winners = winner[~first]
+        for w, l in zip(winners, losers):
+            w, l = int(w), int(l)
+            if m.attack_timer[w] <= 0:
+                m.attack_timer[w] = s.p("attack_cooldown", w)
+                self.metabolism.damage([l], s.p("contest_damage", w),
+                                       f"killed in a squabble with {s.species_type(w).layer_name}")
+            self.world.record(f"{s.species_type(w).layer_name} drove off {s.species_type(l).layer_name}")
+        m.banned_plant[losers] = m.target_plant[losers]
+        m.banned_creature[losers] = m.target_creature[losers]
+        m.yield_timer[losers] = s.p("yield_time", losers)
+        m.action[losers] = WANDER
+        m.target_plant[losers] = m.target_creature[losers] = -1
+        m.running[losers] = False
+        # Back off, away from the winner
+        m.goal[losers] = np.arctan2(s.body.y[losers] - s.body.y[winners], s.body.x[losers] - s.body.x[winners])
+        return losers
 
     def _fight(self, hunter, prey):
         """Living prey isn't swallowed whole: the hunter bites (attack_cooldown apart),

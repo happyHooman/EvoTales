@@ -35,6 +35,7 @@ PARAM_KEYS = [
     "mutation_rate", "founder_variation", "night_vision", "winter_hunger",
     "attack_damage", "defense_damage", "attack_cooldown",
     "herd_radius", "herd_bonus", "crowd_penalty", "herd_cohesion",
+    "dominance", "contest_damage", "contest_range", "yield_time",
 ]
 
 # Inherited traits. Each gene is a multiplier around 1.0, copied from the parent
@@ -93,7 +94,8 @@ class CreatureStore:
         self.command = Columns(heading=F, speed=F)
         self.mind = Columns(action=I, target_creature=I, target_plant=I, running=B, relaxing=B,
                             goal=F, avoid_offset=F, flee_away=F,
-                            think_timer=F, wander_timer=F, detour_timer=F, attack_timer=F)
+                            think_timer=F, wander_timer=F, detour_timer=F, attack_timer=F,
+                            yield_timer=F, banned_plant=I, banned_creature=I)
         self.vitals = Columns(health=F, stamina=F, food=F, foraging=B, bold=B, tired=B,
                               boldness_timer=F, reproduction_timer=F, corpse_timer=F)
         self.env = None  # Environment, set by the world
@@ -184,7 +186,8 @@ class CreatureStore:
         m.avoid_offset[i] = m.flee_away[i] = 0.0
         m.think_timer[i] = rng.uniform(0, cfg["think_interval"])
         m.wander_timer[i] = rng.uniform(0, cfg["wander_turn_interval"])
-        m.detour_timer[i] = m.attack_timer[i] = 0.0
+        m.detour_timer[i] = m.attack_timer[i] = m.yield_timer[i] = 0.0
+        m.banned_plant[i] = m.banned_creature[i] = -1
         v.health[i] = self.p("max_health", i)
         v.stamina[i] = self.p("max_stamina", i) * cfg["birth_stamina_ratio"]
         v.food[i] = cfg["birth_food"] if food is None else food

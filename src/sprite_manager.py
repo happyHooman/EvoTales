@@ -105,13 +105,21 @@ class SpriteManager:
         if sprite_name not in self._sprite_configs[sheet_name]:
             return None
             
+        # Cache: building a texture also computes its hit box from the pixels, which is
+        # slow, and plants ask for their textures every time one is created
+        cache = self.__dict__.setdefault("_texture_cache", {})
+        key = (sheet_name, sprite_name, y_up)
+        if key in cache:
+            return cache[key]
+
         left, bottom, width, height, scale = self._sprite_configs[sheet_name][sprite_name]
         sprite_rect = LBWH(left, bottom, width, height)
-        
+
         texture = self._sprite_sheets[sheet_name].get_texture(sprite_rect, y_up=y_up)
         # Arcade textures don't apply scaling by themselves; we attach the intended
         # scale here so sprites can consistently pick it up at construction time.
         texture.properties["scale"] = scale
+        cache[key] = texture
         return texture
         
     def find_sprite_sheet(self, sprite_name: str) -> Optional[str]:

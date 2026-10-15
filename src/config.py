@@ -138,6 +138,11 @@ CREATURE_DEFAULTS = {
     "herd_bonus": 0.5,             # each herd peer nearby adds this much to the defense bite
     "crowd_penalty": 0.0,          # hunters see prey in a crowd as this much further away, per peer
     "herd_cohesion": 0.0,          # 0..1: how strongly roaming creatures drift toward their herd
+    # Squabbles over the same food item
+    "dominance": 1.0,              # species strength in squabbles (x size gene x health)
+    "contest_damage": 4,           # bite the winner gives each loser
+    "contest_range": 25,           # how close to the food a rival must be to squabble
+    "yield_time": 4.0,             # seconds a loser stays away from that food
     # Food chain: layers this creature eats. Threats are derived from other species' diets.
     "diet": [],
     "nutrition": 60,               # food a predator gains from eating this creature
@@ -180,6 +185,7 @@ CARNIVORE_CONFIG = {
     "reproduction_food_cost": 80,
     "attack_damage": 45,
     "defense_damage": 10,
+    "dominance": 2.0,
     "night_vision": 0.9,           # night hunters
     "crowd_penalty": 0.4,
     "diet": ["herbivores", "smarties"],
@@ -204,6 +210,7 @@ SMARTIE_CONFIG = {
     "reproduction_food_cost": 65,
     "attack_damage": 15,
     "defense_damage": 8,
+    "dominance": 1.3,
     "crowd_penalty": 0.3,
     "herd_cohesion": 0.2,
     "diet": ["plants", "herbivores"],  # herbivores (nutrition 80) beat any plant (max 50)
