@@ -191,7 +191,6 @@ class SettingsWindow(QWidget):
             spin.setRange(MINIMUMS.get(key, 0.0), maximum)
         spin.setLocale(NUMBER_LOCALE)
         spin.setSingleStep(step)
-        spin.setKeyboardTracking(False)  # typing commits on Enter / focus change, not per keystroke
         spin.setValue(value)
         spin.setMinimumWidth(100)
         spin.valueChanged.connect(
@@ -235,6 +234,10 @@ class SettingsWindow(QWidget):
         self._mark_pending(f"{section.capitalize()}: code defaults restored, not applied yet.")
 
     def apply(self, restart):
+        # A number still being typed counts (buttons on macOS don't take focus, so the
+        # field never gets the "editing finished" that would commit it)
+        for spin in self.inputs.values():
+            spin.interpretText()
         problems = settings.speed_warnings(self.values)
         if problems and QMessageBox.question(
                 self, "Predators too slow", "\n".join(problems) + "\n\nApply anyway?"
