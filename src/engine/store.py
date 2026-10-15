@@ -33,6 +33,8 @@ PARAM_KEYS = [
     "reproduction_food_cost",
     "nutrition", "corpse_duration", "max_population",
     "mutation_rate", "founder_variation",
+    "attack_damage", "defense_damage", "attack_cooldown",
+    "herd_radius", "herd_bonus", "crowd_penalty", "herd_cohesion",
 ]
 
 # Inherited traits. Each gene is a multiplier around 1.0, copied from the parent
@@ -49,6 +51,8 @@ GENE_EFFECTS = {
     "alive_stamina_cost": [("size", 1.0), ("vision", 0.3)],  # big bodies and sharp eyes cost upkeep
     "food_drain": [("size", 1.0), ("stamina", 0.3)],
     "hunger_boldness": [("boldness", 1.0)],
+    "attack_damage": [("size", 1.0)],
+    "defense_damage": [("size", 1.0)],
 }
 GENE_RANGE = (0.5, 2.0)
 
@@ -87,7 +91,7 @@ class CreatureStore:
         self.command = Columns(heading=F, speed=F)
         self.mind = Columns(action=I, target_creature=I, target_plant=I, running=B, relaxing=B,
                             goal=F, avoid_offset=F, flee_away=F,
-                            think_timer=F, wander_timer=F, detour_timer=F)
+                            think_timer=F, wander_timer=F, detour_timer=F, attack_timer=F)
         self.vitals = Columns(health=F, stamina=F, food=F, foraging=B, bold=B, tired=B,
                               boldness_timer=F, reproduction_timer=F, corpse_timer=F)
         self.capacity = 0
@@ -174,7 +178,7 @@ class CreatureStore:
         m.avoid_offset[i] = m.flee_away[i] = 0.0
         m.think_timer[i] = rng.uniform(0, cfg["think_interval"])
         m.wander_timer[i] = rng.uniform(0, cfg["wander_turn_interval"])
-        m.detour_timer[i] = 0.0
+        m.detour_timer[i] = m.attack_timer[i] = 0.0
         v.health[i] = self.p("max_health", i)
         v.stamina[i] = self.p("max_stamina", i) * cfg["birth_stamina_ratio"]
         v.food[i] = cfg["birth_food"] if food is None else food

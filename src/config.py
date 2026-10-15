@@ -117,6 +117,14 @@ CREATURE_DEFAULTS = {
     # boldness) with a random change of about this fraction; founders vary too
     "mutation_rate": 0.06,
     "founder_variation": 0.1,
+    # Fighting: hunters bite living prey; prey bites back (stronger in a herd)
+    "attack_damage": 0,            # health a bite takes off prey
+    "defense_damage": 0,           # health a caught prey's bite takes off the hunter
+    "attack_cooldown": 1.0,        # seconds between bites
+    "herd_radius": 60,             # how close peers count as "the herd"
+    "herd_bonus": 0.5,             # each herd peer nearby adds this much to the defense bite
+    "crowd_penalty": 0.0,          # hunters see prey in a crowd as this much further away, per peer
+    "herd_cohesion": 0.0,          # 0..1: how strongly roaming creatures drift toward their herd
     # Food chain: layers this creature eats. Threats are derived from other species' diets.
     "diet": [],
     "nutrition": 60,               # food a predator gains from eating this creature
@@ -130,6 +138,9 @@ HERBIVORE_CONFIG = {
     "max_population": 60,
     "walk_speed": 30,              # runs at 45
     "max_stamina": 120,
+    "defense_damage": 4,
+    "herd_bonus": 0.6,
+    "herd_cohesion": 0.4,
     "diet": ["plants"],
     "nutrition": 80,
 }
@@ -147,13 +158,16 @@ CARNIVORE_CONFIG = {
     "sprint_range": 160,           # stalk, then sprint
     "max_food": 220,
     "birth_food": 80,
-    "alive_stamina_cost": 0.5,
-    "walk_stamina_cost": 1.1,
+    "alive_stamina_cost": 0.4,
+    "walk_stamina_cost": 0.8,
     "digest_rate": 2.0,            # must beat walking cost, or hunters tire out just patrolling
-    "food_drain": 0.4,
+    "food_drain": 0.3,
     "reproduction_interval": 40.0,
     "reproduction_food_threshold": 180,
     "reproduction_food_cost": 80,
+    "attack_damage": 45,
+    "defense_damage": 10,
+    "crowd_penalty": 0.4,
     "diet": ["herbivores", "smarties"],
     "nutrition": 90,
 }
@@ -174,6 +188,10 @@ SMARTIE_CONFIG = {
     "reproduction_interval": 35.0,
     "reproduction_food_threshold": 145,
     "reproduction_food_cost": 65,
+    "attack_damage": 15,
+    "defense_damage": 8,
+    "crowd_penalty": 0.3,
+    "herd_cohesion": 0.2,
     "diet": ["plants", "herbivores"],  # herbivores (nutrition 80) beat any plant (max 50)
     "nutrition": 100,
 }

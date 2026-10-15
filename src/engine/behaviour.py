@@ -22,6 +22,9 @@ overrides fear):
    else go for the closest food. Run at moving prey, walk to plants, corpses
    and still prey. No food in sight: roam.
 4. Tired (until rested), well fed or hurt: relax (drift slowly; heals like sleep).
+Hunters bite living prey (attack_damage every attack_cooldown s) rather than
+swallowing it; prey bites back, harder with its herd around it, and hunters
+prefer prey that isn't in a crowd. Roaming creatures drift toward their herd.
 5. Otherwise roam.
 
 New activities plug in here: a new action code, a branch in _decide_region,
@@ -72,6 +75,8 @@ class BehaviourSystem:
         rows = s.living_rows()
         if not len(rows):
             return
+        m.attack_timer[rows] -= dt
+        self._build_herd_map(rows)
         m.think_timer[rows] -= dt
         due = rows[m.think_timer[rows] <= 0]
         if len(due):
@@ -138,7 +143,9 @@ class BehaviourSystem:
         # Creature food: species I eat, alive or corpse
         is_cfood = in_sight & s.eats[rs[:, None], others_sp[None, :]]
         if len(cols):
-            cfood_d2 = np.where(is_cfood, d2, np.inf)
+            # Herds confuse hunters: prey in a crowd looks further away than it is
+            crowd = 1.0 + P["crowd_penalty"][rs][:, None] * (s.alive[cols] * self.herd_peers(cols))[None, :]
+            cfood_d2 = np.where(is_cfood, d2 * crowd, np.inf)
             bc = np.argmin(cfood_d2, axis=1)
             best_c_d2, best_c = cfood_d2[ar, bc], cols[bc]
         else:
@@ -320,7 +327,15 @@ class BehaviourSystem:
             turn = roam[m.wander_timer[roam] <= 0]
             if len(turn):
                 m.wander_timer[turn] = s.p("wander_turn_interval", turn) * np.random.uniform(0.5, 1.5, len(turn))
-                m.goal[turn] = s.body.heading[turn] + np.random.uniform(-HALF_PI, HALF_PI, len(turn))
+                goal = s.body.heading[turn] + np.random.uniform(-HALF_PI, HALF_PI, len(turn))
+                # Herding: drift back toward nearby peers (a cohesion of 1 heads straight for them)
+                cohesion = s.p("herd_cohesion", turn)
+                cx, cy, peers = self.herd_centroid(turn)
+                pull = (cohesion > 0) & (peers > 0)
+                if pull.any():
+                    to_herd = np.arctan2(cy - s.body.y[turn], cx - s.body.x[turn])
+                    goal = np.where(pull, goal + cohesion * wrap_angle(to_herd - goal), goal)
+                m.goal[turn] = goal
 
         eaters = rows[action == EAT]
         if len(eaters):
@@ -358,7 +373,80 @@ class BehaviourSystem:
         steer = ~touching & (m.detour_timer[e] <= 0)  # unless detouring around water
         m.goal[e[steer]] = np.arctan2(ddy[steer], ddx[steer])
         for j in np.nonzero(touching)[0]:
-            self._consume(int(e[j]))
+            r = int(e[j])
+            t = int(m.target_creature[r])
+            if t >= 0 and s.alive[t] and s.p("attack_damage", r) > 0:
+                self._fight(r, t)
+            else:
+                self._consume(r)
+
+    def _fight(self, hunter, prey):
+        """Living prey isn't swallowed whole: the hunter bites (attack_cooldown apart),
+        and the prey bites back, harder with its herd around it."""
+        s, m = self.store, self.store.mind
+        if m.attack_timer[hunter] <= 0:
+            m.attack_timer[hunter] = s.p("attack_cooldown", hunter)
+            self.metabolism.damage([prey], s.p("attack_damage", hunter),
+                                   f"killed by {s.species_type(hunter).layer_name}")
+        if s.alive[prey] and m.attack_timer[prey] <= 0 and s.p("defense_damage", prey) > 0:
+            m.attack_timer[prey] = s.p("attack_cooldown", prey)
+            peers = self.herd_peers(np.array([prey]))[0]
+            bite = s.p("defense_damage", prey) * (1 + s.p("herd_bonus", prey) * peers)
+            self.metabolism.damage([hunter], bite, f"killed by {s.species_type(prey).layer_name} fighting back")
+            if not s.alive[hunter]:
+                self.world.record(f"{s.species_type(prey).layer_name} fought off a hunter")
+
+    # ------------------------------------------------------------------ herds
+
+    def _build_herd_map(self, rows):
+        """Per species, how many living creatures (and their summed positions) are in
+        each herd-sized cell of the map. Rebuilt every frame; used for herd defense,
+        hunters' confusion and herding."""
+        s = self.store
+        self._cell = float(max(s.params["herd_radius"].max(), 10.0))
+        w, h = self.world.map_size
+        gw, gh = int(w // self._cell) + 1, int(h // self._cell) + 1
+        n_sp = len(s.species_types)
+        gx = np.clip((s.body.x[rows] // self._cell).astype(np.int64), 0, gw - 1)
+        gy = np.clip((s.body.y[rows] // self._cell).astype(np.int64), 0, gh - 1)
+        sp = s.species[rows]
+        count = np.zeros((n_sp, gw + 2, gh + 2))
+        sx = np.zeros_like(count)
+        sy = np.zeros_like(count)
+        np.add.at(count, (sp, gx + 1, gy + 1), 1)
+        np.add.at(sx, (sp, gx + 1, gy + 1), s.body.x[rows])
+        np.add.at(sy, (sp, gx + 1, gy + 1), s.body.y[rows])
+
+        def around(a):  # sum of each cell and its 8 neighbours
+            out = np.zeros_like(a)
+            for ox in (-1, 0, 1):
+                for oy in (-1, 0, 1):
+                    out[:, 1:-1, 1:-1] += a[:, 1 + ox:a.shape[1] - 1 + ox, 1 + oy:a.shape[2] - 1 + oy]
+            return out
+        self._herd_count, self._herd_sx, self._herd_sy = around(count), around(sx), around(sy)
+        self._herd_dims = (gw, gh)
+
+    def _herd_cells(self, rows):
+        s = self.store
+        gw, gh = self._herd_dims
+        gx = np.clip((s.body.x[rows] // self._cell).astype(np.int64), 0, gw - 1) + 1
+        gy = np.clip((s.body.y[rows] // self._cell).astype(np.int64), 0, gh - 1) + 1
+        return s.species[rows], gx, gy
+
+    def herd_peers(self, rows):
+        """Same-species creatures around each row (not counting itself)."""
+        sp, gx, gy = self._herd_cells(rows)
+        return np.maximum(self._herd_count[sp, gx, gy] - 1, 0)
+
+    def herd_centroid(self, rows):
+        """Centre of each row's nearby same-species group (excluding itself), and its size."""
+        s = self.store
+        sp, gx, gy = self._herd_cells(rows)
+        count = self._herd_count[sp, gx, gy] - 1
+        sx = self._herd_sx[sp, gx, gy] - s.body.x[rows]
+        sy = self._herd_sy[sp, gx, gy] - s.body.y[rows]
+        safe = np.maximum(count, 1)
+        return sx / safe, sy / safe, np.maximum(count, 0)
 
     def _consume(self, r):
         s, m = self.store, self.store.mind

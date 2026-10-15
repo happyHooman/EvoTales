@@ -56,6 +56,13 @@ LABELS = {
     "corpse_duration": "Corpse duration (s)",
     "mutation_rate": "Mutation at birth",
     "reintroduce_after": "Reintroduce if extinct after (s)",
+    "attack_damage": "Bite damage (hunting)",
+    "defense_damage": "Bite-back damage",
+    "attack_cooldown": "Seconds between bites",
+    "herd_radius": "Herd radius (px)",
+    "herd_bonus": "Bite-back bonus per herd peer",
+    "crowd_penalty": "Avoids prey in crowds (per peer)",
+    "herd_cohesion": "Herding (0..1)",
     "founder_variation": "Founder variation (on restart)",
 }
 TOOLTIPS = {
@@ -94,6 +101,8 @@ STEPS = {
     "hunger_boldness": 0.05, "boldness_interval": 0.5,
     "nutrition": 5, "corpse_duration": 1.0, "mutation_rate": 0.01, "founder_variation": 0.01,
     "reintroduce_after": 10.0,
+    "attack_damage": 1, "defense_damage": 1, "attack_cooldown": 0.1,
+    "herd_radius": 5, "herd_bonus": 0.05, "crowd_penalty": 0.05, "herd_cohesion": 0.05,
 }
 PLANT_STEPS = {"initial_count": 10}
 # Decimal point and no thousands separators, whatever the system locale
@@ -102,7 +111,7 @@ NUMBER_LOCALE.setNumberOptions(QLocale.NumberOption.OmitGroupSeparator)
 MINIMUMS = {"run_speed_multiplier": 1.05, "run_stamina_multiplier": 1.0, "boldness_interval": 0.1,
             "max_health": 5, "max_stamina": 5, "max_food": 5, "digest_efficiency": 0.05,
             "min_edible_level": 1}
-MAXIMUMS = {"min_edible_level": 4, "hunger_boldness": 1.0}
+MAXIMUMS = {"min_edible_level": 4, "hunger_boldness": 1.0, "herd_cohesion": 1.0}
 
 
 def _step(section, key):

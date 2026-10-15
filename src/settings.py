@@ -40,6 +40,8 @@ CREATURE_KEYS = [
     "reproduction_interval", "reproduction_food_threshold", "reproduction_health_ratio",
     "reproduction_food_cost",
     "mutation_rate", "founder_variation",
+    "attack_damage", "defense_damage", "attack_cooldown",
+    "herd_radius", "herd_bonus", "crowd_penalty", "herd_cohesion",
     "nutrition", "corpse_duration", "reintroduce_after", "diet",
 ]
 # Only take effect when the world is rebuilt
