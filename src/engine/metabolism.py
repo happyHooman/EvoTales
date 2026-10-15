@@ -20,6 +20,8 @@ Per step, for every living creature at once:
 """
 import numpy as np
 
+HURT_FLASH = 0.35  # seconds a wounded creature flashes red
+
 
 class MetabolismSystem:
     def __init__(self, store):
@@ -73,6 +75,7 @@ class MetabolismSystem:
 
         v.health[rows], v.stamina[rows], v.food[rows] = health, stamina, food
         v.reproduction_timer[rows] -= dt
+        v.hurt_flash[rows] = np.maximum(v.hurt_flash[rows] - dt, 0.0)
 
         dead = health <= 0
         if dead.any():
@@ -116,6 +119,7 @@ class MetabolismSystem:
         s, v = self.store, self.store.vitals
         rows = np.asarray(rows)
         v.health[rows] -= amounts
+        v.hurt_flash[rows] = HURT_FLASH  # shown as a red flash
         dead = rows[(v.health[rows] <= 0) & s.alive[rows]]
         if len(dead):
             s.kill(dead, cause, leave_corpse=True)

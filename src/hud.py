@@ -125,6 +125,8 @@ class Inspector:
             state += " (running)"
         if v.tired[r]:
             state += ", tired"
+        if store.alive[r] and m.stand_timer[r] > 0:
+            state += ", standing its ground"
         gene_text = [f"{g} {getattr(store.genes, g)[r]:.2f}" for g in GENES]
         lines = [
             f"{layer[:-1]} #{self.uid}  gen {store.core.generation[r]}",
@@ -132,8 +134,7 @@ class Inspector:
             f"health  {v.health[r]:5.1f} / {store.p('max_health', r):.0f}",
             f"stamina {v.stamina[r]:5.1f} / {store.p('max_stamina', r):.0f}",
             f"food    {v.food[r]:5.1f} / {store.p('max_food', r):.0f}",
-            "genes: " + "  ".join(gene_text[:3]),
-            "       " + "  ".join(gene_text[3:]),
+            "genes: " + "  ".join(gene_text),
             "Esc or click empty ground to stop following",
         ]
         self.text.text = "\n".join(lines)

@@ -155,7 +155,7 @@ CREATURE_DEFAULTS = {
     "reproduction_food_threshold": 120,
     "reproduction_health_ratio": 0.9,
     "reproduction_food_cost": 55,
-    # Inheritance: newborns copy the parent's genes (size, speed, stamina, vision,
+    # Inheritance: newborns copy the parent's genes (speed, stamina, vision,
     # boldness) with a random change of about this fraction; founders vary too
     "mutation_rate": 0.06,
     "founder_variation": 0.1,
@@ -174,7 +174,7 @@ CREATURE_DEFAULTS = {
     "call_range": 0,               # how far a call carries, px (0 = this species doesn't call)
     "alarm_duration": 3.0,         # seconds peers flee after hearing a call
     # Squabbles over the same food item
-    "dominance": 1.0,              # species strength in squabbles (x size gene x health)
+    "dominance": 1.0,              # species strength in squabbles (x health)
     "contest_damage": 4,           # bite the winner gives each loser
     "contest_range": 25,           # how close to the food a rival must be to squabble
     "yield_time": 4.0,             # seconds a loser stays away from that food

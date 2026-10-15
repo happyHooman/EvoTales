@@ -102,9 +102,9 @@ TOOLTIPS = {
     "muscle_burn": "When stamina is empty, each stamina point still needed costs this much health",
     "digest_rate": "Food turned into stamina per second, while stamina isn't full",
     "hunger_boldness": "Chance (with an empty food bar) that hunger beats fear of a predator that isn't chasing",
-    "nutrition": "Food a predator gains from eating this creature (scaled by its size gene)",
+    "nutrition": "Food a predator gains from eating this creature",
     "reintroduce_after": "If a species dies out, new founders arrive after this many seconds (0 = stays extinct)",
-    "mutation_rate": "Typical change of each gene (size, speed, stamina, vision, boldness) from parent to child",
+    "mutation_rate": "Typical change of each gene (speed, stamina, vision, boldness) from parent to child",
     "avoid_horizon": "How far ahead creatures predict each other's paths to avoid bumping (0 = off)",
 }
 # Arrow-button step per setting. Integers stay integers.

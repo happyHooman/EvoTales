@@ -42,19 +42,14 @@ PARAM_KEYS = [
 # Inherited traits. Each gene is a multiplier around 1.0, copied from the parent
 # with a small random mutation. Each one changes some species parameters, with
 # trade-offs so no gene is free: parameter -> [(gene, exponent), ...]
-GENES = ("size", "speed", "stamina", "vision", "boldness")
+GENES = ("speed", "stamina", "vision", "boldness")
 GENE_EFFECTS = {
-    "walk_speed": [("speed", 1.0), ("size", -0.2)],      # big bodies are a bit slower
-    "max_health": [("size", 1.0)],
-    "max_food": [("size", 0.5)],
-    "nutrition": [("size", 1.0)],                         # big prey feeds more
+    "walk_speed": [("speed", 1.0)],
     "max_stamina": [("stamina", 1.0)],
     "vision_range": [("vision", 1.0)],
-    "alive_stamina_cost": [("size", 1.0), ("vision", 0.3)],  # big bodies and sharp eyes cost upkeep
-    "food_drain": [("size", 1.0), ("stamina", 0.3)],
+    "alive_stamina_cost": [("vision", 0.3)],   # sharp eyes cost upkeep
+    "food_drain": [("stamina", 0.3)],          # so does a big stamina pool
     "hunger_boldness": [("boldness", 1.0)],
-    "attack_damage": [("size", 1.0)],
-    "defense_damage": [("size", 1.0)],
 }
 GENE_RANGE = (0.5, 2.0)
 # Parameters the environment scales per species (day/night, seasons): param -> Environment attribute
@@ -101,8 +96,9 @@ class CreatureStore:
                             goal=F, avoid_offset=F, flee_away=F,
                             think_timer=F, wander_timer=F, detour_timer=F, attack_timer=F,
                             yield_timer=F, banned_plant=I, banned_creature=I,
-                            alarm_timer=F, alarm_heading=F, call_timer=F, call_flash=F)
-        self.vitals = Columns(health=F, stamina=F, food=F, foraging=B, bold=B, tired=B,
+                            alarm_timer=F, alarm_heading=F, call_timer=F, call_flash=F,
+                            stand_timer=F, stand_target=I)
+        self.vitals = Columns(health=F, stamina=F, food=F, foraging=B, bold=B, tired=B, hurt_flash=F,
                               boldness_timer=F, reproduction_timer=F, corpse_timer=F)
         self.env = None  # Environment, set by the world
         self.capacity = 0
@@ -192,7 +188,7 @@ class CreatureStore:
         c.species[i], c.used[i], c.alive[i] = s, True, True
         c.uid[i] = self._next_uid
         self._next_uid += 1
-        c.radius[i] = max(w, h) / 2 * self.genes.size[i]
+        c.radius[i] = max(w, h) / 2
         c.biome[i] = int(self.world.biome_at(x, y))
         heading = rng.uniform(0, TWO_PI)
         b.x[i], b.y[i], b.heading[i] = x, y, heading
@@ -208,10 +204,11 @@ class CreatureStore:
         m.detour_timer[i] = m.attack_timer[i] = m.yield_timer[i] = 0.0
         m.banned_plant[i] = m.banned_creature[i] = -1
         m.alarm_timer[i] = m.alarm_heading[i] = m.call_timer[i] = m.call_flash[i] = 0.0
+        m.stand_timer[i], m.stand_target[i] = 0.0, -1
         v.health[i] = self.p("max_health", i)
         v.stamina[i] = self.p("max_stamina", i) * cfg["birth_stamina_ratio"]
         v.food[i] = cfg["birth_food"] if food is None else food
-        v.foraging[i], v.bold[i], v.tired[i] = True, False, False
+        v.foraging[i], v.bold[i], v.tired[i], v.hurt_flash[i] = True, False, False, 0.0
         v.boldness_timer[i] = v.corpse_timer[i] = 0.0
         v.reproduction_timer[i] = cfg["reproduction_interval"]
         return i

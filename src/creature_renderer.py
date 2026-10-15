@@ -11,6 +11,7 @@ from sprite_config import SPRITE_ANGLE_OFFSET
 from sprite_manager import sprite_manager
 
 CORPSE_COLOR = (80 / 255, 80 / 255, 80 / 255, 200 / 255)
+HURT_COLOR = (1.0, 0.3, 0.3, 1.0)  # just bitten
 FLOATS_PER_INSTANCE = 8  # center(2) angle(1) scale(1) color(4)
 
 VERTEX_SHADER = """
@@ -24,7 +25,7 @@ uniform vec2 half_size;
 in vec2 in_corner;      // unit quad, -1..1
 in vec2 in_center;
 in float in_angle;      // radians, counter-clockwise
-in float in_scale;      // the creature's size gene
+in float in_scale;      // sprite scale (1 for now)
 in vec4 in_color;
 
 out vec2 v_uv;
@@ -110,8 +111,11 @@ class CreatureRenderer:
             data[:, 1] = body.y[rows]
             # Sprite art faces down; rotate so it faces the heading
             data[:, 2] = body.heading[rows] + SPRITE_ANGLE_OFFSET
-            data[:, 3] = store.genes.size[rows]
+            data[:, 3] = 1.0
             data[:, 4:8] = 1.0
+            hurt = store.vitals.hurt_flash[rows] > 0
+            if hurt.any():
+                data[hurt, 4:8] = HURT_COLOR
             dead = ~alive[rows]
             if dead.any():
                 data[dead, 4:8] = CORPSE_COLOR

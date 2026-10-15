@@ -23,12 +23,13 @@ overrides fear):
    and still prey. No food in sight: roam.
 4. Tired (until rested), well fed or hurt: relax (drift slowly; heals like sleep).
 Hunters bite living prey (attack_damage every attack_cooldown s) rather than
-swallowing it; prey bites back, harder with its herd around it, and hunters
+swallowing it; prey bites back, harder with its herd around it (when caught
+exhausted or with its herd near, it stops and turns to fight), and hunters
 prefer prey that isn't in a crowd. Roaming creatures drift toward their herd.
 Prey running from a predator give alarm calls; peers that hear one flee the
 same way for a while, even if they can't see the danger.
-Creatures reaching the same food item squabble: the strongest (dominance x size
-x health) keeps it; the rest take a bite and stay away from it for yield_time.
+Creatures reaching the same food item squabble: the strongest (dominance x
+health) keeps it; the rest take a bite and stay away from it for yield_time.
 5. Otherwise roam.
 
 New activities plug in here: a new action code, a branch in _decide_region,
@@ -50,6 +51,7 @@ DETOUR_OFFSETS = np.array([0.8, -0.8, 1.6, -1.6, 2.4, -2.4, math.pi])
 DETOUR_TIME = 0.8
 CALL_COOLDOWN = 2.0  # seconds between one creature's alarm calls
 CALL_FLASH = 0.6     # seconds the call ripple is shown
+STAND_TIME = 1.2     # seconds caught prey stands and fights before trying to run again
 # Thinkers are batched by map region of this size (at least their vision range)
 REGION_SIZE = 800.0
 
@@ -75,6 +77,8 @@ class BehaviourSystem:
         n = self.store.count
         tc = self.store.mind.target_creature[:n]
         tc[np.isin(tc, rows)] = -1
+        st_ = self.store.mind.stand_target[:n]
+        st_[np.isin(st_, rows)] = -1
 
     def step(self, dt):
         s, m = self.store, self.store.mind
@@ -86,6 +90,7 @@ class BehaviourSystem:
         m.alarm_timer[rows] -= dt
         m.call_timer[rows] -= dt
         m.call_flash[rows] -= dt
+        m.stand_timer[rows] -= dt
         self._build_herd_map(rows)
         m.think_timer[rows] -= dt
         due = rows[m.think_timer[rows] <= 0]
@@ -428,9 +433,9 @@ class BehaviourSystem:
                 self._consume(r)
 
     def strength(self, rows):
-        """How a creature fares in a squabble over food: species dominance x size x health."""
+        """How a creature fares in a squabble over food: species dominance x health."""
         s = self.store
-        return s.p("dominance", rows) * s.genes.size[rows] * s.vitals.health[rows] / s.p("max_health", rows)
+        return s.p("dominance", rows) * s.vitals.health[rows] / s.p("max_health", rows)
 
     def _contest(self, rows):
         """Creatures close to the same food item squabble: the strongest keeps it; the
@@ -471,9 +476,15 @@ class BehaviourSystem:
             m.attack_timer[hunter] = s.p("attack_cooldown", hunter)
             self.metabolism.damage([prey], s.p("attack_damage", hunter),
                                    f"killed by {s.species_type(hunter).layer_name}")
-        if s.alive[prey] and m.attack_timer[prey] <= 0 and s.p("defense_damage", prey) > 0:
+        if not s.alive[prey] or s.p("defense_damage", prey) <= 0:
+            return
+        peers = self.herd_peers(np.array([prey]))[0]
+        # Caught while exhausted, or with its herd around: turn and stand its ground
+        if s.vitals.tired[prey] or peers >= 2:
+            m.stand_timer[prey] = STAND_TIME
+            m.stand_target[prey] = hunter
+        if m.attack_timer[prey] <= 0:
             m.attack_timer[prey] = s.p("attack_cooldown", prey)
-            peers = self.herd_peers(np.array([prey]))[0]
             bite = s.p("defense_damage", prey) * (1 + s.p("herd_bonus", prey) * peers)
             self.metabolism.damage([hunter], bite, f"killed by {s.species_type(prey).layer_name} fighting back")
             if not s.alive[hunter]:
@@ -621,11 +632,21 @@ class BehaviourSystem:
 
     def _steer(self, rows, dt):
         """Goal heading + dodge -> the heading command physics will turn toward."""
-        m, cmd = self.store.mind, self.store.command
+        s, m, cmd = self.store, self.store.mind, self.store.command
         m.detour_timer[rows] = np.maximum(m.detour_timer[rows] - dt, 0)
         m.goal[rows] %= TWO_PI
         heading = m.goal[rows] + m.avoid_offset[rows]
-        fleeing = m.action[rows] == FLEE
+        # Standing its ground: stop and face the attacker
+        standing = (m.stand_timer[rows] > 0) & (m.stand_target[rows] >= 0)
+        if standing.any():
+            sr = rows[standing]
+            t = m.stand_target[sr]
+            alive = s.alive[t]
+            face = np.arctan2(s.body.y[t] - s.body.y[sr], s.body.x[t] - s.body.x[sr])
+            heading[standing] = np.where(alive, face, heading[standing])
+            cmd.speed[sr] = np.where(alive, 0.0, cmd.speed[sr])
+            m.stand_timer[sr[~alive]] = 0.0
+        fleeing = (m.action[rows] == FLEE) & ~standing
         if fleeing.any():
             away = m.flee_away[rows]
             # A dodge while fleeing never points back toward the predators
