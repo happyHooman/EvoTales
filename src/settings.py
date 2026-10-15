@@ -49,9 +49,10 @@ CREATURE_KEYS = [
     "reproduction_interval", "reproduction_food_threshold", "reproduction_health_ratio",
     "reproduction_food_cost",
     "mutation_rate", "founder_variation", "night_vision", "winter_hunger",
-    "attack_damage", "defense_damage", "attack_cooldown",
+    "attack", "rival_bite", "attack_cooldown",
+    "personal_space", "crowd_limit", "crowd_damage", "aggression",
     "herd_radius", "herd_bonus", "crowd_penalty", "herd_cohesion",
-    "dominance", "contest_damage", "contest_range", "yield_time",
+    "dominance", "contest_range", "yield_time",
     "call_range", "alarm_duration",
     "nutrition", "corpse_duration", "reintroduce_after", "diet",
 ]

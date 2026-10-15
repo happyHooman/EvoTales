@@ -33,9 +33,10 @@ PARAM_KEYS = [
     "reproduction_food_cost",
     "nutrition", "corpse_duration", "max_population",
     "mutation_rate", "founder_variation", "night_vision", "winter_hunger",
-    "attack_damage", "defense_damage", "attack_cooldown",
+    "attack", "rival_bite", "attack_cooldown",
+    "personal_space", "crowd_limit", "crowd_damage", "aggression",
     "herd_radius", "herd_bonus", "crowd_penalty", "herd_cohesion",
-    "dominance", "contest_damage", "contest_range", "yield_time",
+    "dominance", "contest_range", "yield_time",
     "call_range", "alarm_duration",
 ]
 
@@ -55,6 +56,7 @@ GENES = (
     "hunger_boldness",
     "reproduction_food_threshold", "reproduction_health_ratio", "reproduction_food_cost",
     "reproduction_interval",
+    "attack", "aggression",
 )
 GENE_EFFECTS = {gene: [(gene, 1.0)] for gene in GENES}
 # Kept from before: sharp eyes and a big stamina pool cost upkeep
@@ -110,7 +112,7 @@ class CreatureStore:
                             think_timer=F, wander_timer=F, detour_timer=F, attack_timer=F,
                             yield_timer=F, banned_plant=I, banned_creature=I,
                             alarm_timer=F, alarm_heading=F, call_timer=F, call_flash=F,
-                            stand_timer=F, stand_target=I)
+                            stand_timer=F, stand_target=I, crowd=F, crowd_neighbor=I)
         self.vitals = Columns(health=F, stamina=F, food=F, foraging=B, bold=B, tired=B, hurt_flash=F,
                               boldness_timer=F, reproduction_timer=F, corpse_timer=F)
         self.env = None  # Environment, set by the world
@@ -163,6 +165,14 @@ class CreatureStore:
             biome = self.core.biome[rows]
             value = value * np.where(biome >= 0, self.world.biome_effects[BIOME_PARAM_EFFECTS[key]][biome], 1.0)
         return value
+
+    def attack_value(self, rows):
+        """How hard a bite is right now: the attack value, weakened by low health and
+        low stamina."""
+        v = self.vitals
+        health = np.clip(v.health[rows] / self.p("max_health", rows), 0, 1)
+        stamina = np.clip(v.stamina[rows] / self.p("max_stamina", rows), 0, 1)
+        return self.p("attack", rows) * (0.3 + 0.7 * health) * (0.3 + 0.7 * stamina)
 
     def update_biomes(self, rows):
         """Which biome each creature stands on (the world calls this every frame)."""
@@ -220,6 +230,7 @@ class CreatureStore:
         m.banned_plant[i] = m.banned_creature[i] = -1
         m.alarm_timer[i] = m.alarm_heading[i] = m.call_timer[i] = m.call_flash[i] = 0.0
         m.stand_timer[i], m.stand_target[i] = 0.0, -1
+        m.crowd[i], m.crowd_neighbor[i] = 0.0, -1
         v.health[i] = self.p("max_health", i)
         v.stamina[i] = self.p("max_stamina", i) * cfg["birth_stamina_ratio"]
         v.food[i] = cfg["birth_food"] if food is None else food

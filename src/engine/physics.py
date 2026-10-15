@@ -120,6 +120,44 @@ class PhysicsEngine:
 
     # --------------------------------------------------------------- queries
 
+    def pairs_within(self, rows, radius):
+        """Every pair of `rows` closer than `radius`, once each, as local indices
+        (i, j) into rows plus their distance. Found by sorting into cells and
+        looking up neighbouring cells, so it scales with local density."""
+        body = self.store.body
+        x, y = body.x[rows], body.y[rows]
+        empty = (np.zeros(0, int), np.zeros(0, int), np.zeros(0))
+        if len(rows) < 2 or radius <= 0:
+            return empty
+        cx = np.floor(x / radius).astype(np.int64)
+        cy = np.floor(y / radius).astype(np.int64)
+        key = cx * 100003 + cy
+        order = np.argsort(key, kind="stable")
+        skey = key[order]
+        pi_list, pj_list = [], []
+        for ox, oy in ((0, 0), (1, -1), (1, 0), (1, 1), (0, 1)):
+            nkey = (cx + ox) * 100003 + (cy + oy)
+            lo = np.searchsorted(skey, nkey, side="left")
+            hi = np.searchsorted(skey, nkey, side="right")
+            counts = hi - lo
+            total = counts.sum()
+            if total == 0:
+                continue
+            i = np.repeat(np.arange(len(rows)), counts)
+            starts = np.repeat(lo - np.cumsum(counts) + counts, counts)
+            j = order[np.arange(total) + starts]
+            if ox == 0 and oy == 0:
+                keep = j > i
+                i, j = i[keep], j[keep]
+            pi_list.append(i)
+            pj_list.append(j)
+        if not pi_list:
+            return empty
+        i, j = np.concatenate(pi_list), np.concatenate(pj_list)
+        d = np.hypot(x[j] - x[i], y[j] - y[i])
+        near = d <= radius
+        return i[near], j[near], d[near]
+
     def free_heading(self, rows, base, offsets):
         """First direction among base+offsets with no wall/water just ahead, per row
         (NaN when every option is blocked). Read-only."""

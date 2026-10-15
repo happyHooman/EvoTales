@@ -22,12 +22,16 @@ overrides fear):
    else go for the closest food. Run at moving prey, walk to plants, corpses
    and still prey. No food in sight: roam.
 4. Tired (until rested), well fed or hurt: relax (drift slowly; heals like sleep).
-Hunters bite living prey (attack_damage every attack_cooldown s) rather than
+Every creature has an attack value (attack, weakened by low health and stamina).
+Hunters bite living prey (one bite every attack_cooldown s) rather than
 swallowing it; prey bites back, harder with its herd around it (when caught
 exhausted or with its herd near, it stops and turns to fight), and hunters
 prefer prey that isn't in a crowd. Roaming creatures drift toward their herd.
 Prey running from a predator give alarm calls; peers that hear one flee the
 same way for a while, even if they can't see the danger.
+Personal space is a resource: too many of its own kind within personal_space
+and a creature is crammed (slowly loses health) and may bite the closest one,
+which backs off.
 Creatures reaching the same food item squabble: the strongest (dominance x
 health) keeps it; the rest take a bite and stay away from it for yield_time.
 5. Otherwise roam.
@@ -87,6 +91,7 @@ class BehaviourSystem:
             return
         m.attack_timer[rows] -= dt
         m.yield_timer[rows] -= dt
+        self._measure_crowding(rows)
         m.alarm_timer[rows] -= dt
         m.call_timer[rows] -= dt
         m.call_flash[rows] -= dt
@@ -288,6 +293,7 @@ class BehaviourSystem:
             m.detour_timer[rows[fr]] = 0.0
 
         self._alarm_calls(rows, cols, d2, (action == FLEE) & any_alarming)
+        self._fight_for_space(rows[action != FLEE])
 
         nf = rows[action != FLEE]
         if len(nf):
@@ -429,15 +435,17 @@ class BehaviourSystem:
         for j in np.nonzero(touching)[0]:
             r = int(e[j])
             t = int(m.target_creature[r])
-            if t >= 0 and s.alive[t] and s.p("attack_damage", r) > 0:
+            if t >= 0 and s.alive[t] and s.p("attack", r) > 0:
                 self._fight(r, t)
             else:
                 self._consume(r)
 
+    def attack_value(self, rows):
+        return self.store.attack_value(rows)
+
     def strength(self, rows):
-        """How a creature fares in a squabble over food: species dominance x health."""
-        s = self.store
-        return s.p("dominance", rows) * s.vitals.health[rows] / s.p("max_health", rows)
+        """How a creature fares in a squabble over food: species dominance x attack value."""
+        return self.store.p("dominance", rows) * self.attack_value(rows)
 
     def _contest(self, rows):
         """Creatures close to the same food item squabble: the strongest keeps it; the
@@ -457,7 +465,7 @@ class BehaviourSystem:
             w, l = int(w), int(l)
             if m.attack_timer[w] <= 0:
                 m.attack_timer[w] = s.p("attack_cooldown", w)
-                self.metabolism.damage([l], s.p("contest_damage", w),
+                self.metabolism.damage([l], self.attack_value(np.array([w]))[0] * s.p("rival_bite", w),
                                        f"killed in a squabble with {s.species_type(w).layer_name}")
             self.world.record(f"{s.species_type(w).layer_name} drove off {s.species_type(l).layer_name}")
         m.banned_plant[losers] = m.target_plant[losers]
@@ -476,9 +484,9 @@ class BehaviourSystem:
         s, m = self.store, self.store.mind
         if m.attack_timer[hunter] <= 0:
             m.attack_timer[hunter] = s.p("attack_cooldown", hunter)
-            self.metabolism.damage([prey], s.p("attack_damage", hunter),
+            self.metabolism.damage([prey], self.attack_value(np.array([hunter]))[0],
                                    f"killed by {s.species_type(hunter).layer_name}")
-        if not s.alive[prey] or s.p("defense_damage", prey) <= 0:
+        if not s.alive[prey] or s.p("attack", prey) <= 0:
             return
         peers = self.herd_peers(np.array([prey]))[0]
         # Caught while exhausted, or with its herd around: turn and stand its ground
@@ -487,10 +495,66 @@ class BehaviourSystem:
             m.stand_target[prey] = hunter
         if m.attack_timer[prey] <= 0:
             m.attack_timer[prey] = s.p("attack_cooldown", prey)
-            bite = s.p("defense_damage", prey) * (1 + s.p("herd_bonus", prey) * peers)
+            bite = self.attack_value(np.array([prey]))[0] * (1 + s.p("herd_bonus", prey) * peers)
             self.metabolism.damage([hunter], bite, f"killed by {s.species_type(prey).layer_name} fighting back")
             if not s.alive[hunter]:
                 self.world.record(f"{s.species_type(prey).layer_name} fought off a hunter")
+
+    # --------------------------------------------------------------- crowding
+
+    def _measure_crowding(self, rows):
+        """How many of its own kind are inside each creature's personal space, and
+        which of them is closest (the one it would push back against)."""
+        s, m = self.store, self.store.mind
+        m.crowd[rows] = 0
+        m.crowd_neighbor[rows] = -1
+        space = s.p("personal_space", rows)
+        i, j, d = self.physics.pairs_within(rows, float(space.max()) if len(rows) else 0.0)
+        if not len(i):
+            return
+        same = s.species[rows[i]] == s.species[rows[j]]
+        i, j, d = i[same], j[same], d[same]
+        counts = np.zeros(len(rows))
+        nearest = np.full(len(rows), np.inf)
+        neighbor = np.full(len(rows), -1)
+        for a, b in ((i, j), (j, i)):
+            inside = d <= space[a]
+            np.add.at(counts, a[inside], 1)
+            # closest peer: sort by distance descending so the smallest is written last
+            order = np.argsort(-d[inside])
+            aa, bb, dd = a[inside][order], b[inside][order], d[inside][order]
+            closer = dd < nearest[aa]
+            nearest[aa[closer]] = dd[closer]
+            neighbor[aa[closer]] = rows[bb[closer]]
+        m.crowd[rows] = counts
+        m.crowd_neighbor[rows] = neighbor
+
+    def _fight_for_space(self, rows):
+        """Crammed creatures may bite the closest peer crowding them (chance grows with
+        how crammed they are); the bitten one backs off."""
+        s, m = self.store, self.store.mind
+        limit = s.p("crowd_limit", rows)
+        excess = m.crowd[rows] - limit
+        crammed = (excess > 0) & (m.crowd_neighbor[rows] >= 0) & (m.attack_timer[rows] <= 0)
+        if not crammed.any():
+            return
+        chance = s.p("aggression", rows) * np.clip(excess / np.maximum(limit, 1), 0, 1)
+        attackers = rows[crammed & (np.random.random(len(rows)) < chance)]
+        for a in attackers:
+            a = int(a)
+            victim = int(m.crowd_neighbor[a])
+            if not s.alive[victim]:
+                continue
+            m.attack_timer[a] = s.p("attack_cooldown", a)
+            self.metabolism.damage([victim], self.attack_value(np.array([a]))[0] * s.p("rival_bite", a),
+                                   f"killed fighting for space with its own kind")
+            self.world.record(f"{s.species_type(a).layer_name} fought for space")
+            if s.alive[victim] and m.action[victim] != FLEE:
+                # back off, away from the attacker, for a moment
+                m.action[victim] = WANDER
+                m.target_creature[victim] = m.target_plant[victim] = -1
+                m.goal[victim] = np.arctan2(s.body.y[victim] - s.body.y[a], s.body.x[victim] - s.body.x[a])
+                m.wander_timer[victim] = 1.5
 
     # ------------------------------------------------------------------ herds
 

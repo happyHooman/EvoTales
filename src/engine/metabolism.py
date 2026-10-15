@@ -71,6 +71,9 @@ class MetabolismSystem:
         health -= owed * P["muscle_burn"][sp]
         starving = food <= starve_line
         health -= np.where(starving, P["starve_damage"][sp] * dt, 0.0)
+        # Crammed: too many of its own kind inside its personal space
+        excess = np.maximum(s.mind.crowd[rows] - s.p("crowd_limit", rows), 0.0)
+        health -= s.p("crowd_damage", rows) * excess * dt
         health = np.minimum(health + np.where(healing, s.p("heal_rate", rows) * dt, 0.0), max_h)
 
         v.health[rows], v.stamina[rows], v.food[rows] = health, stamina, food
@@ -79,7 +82,10 @@ class MetabolismSystem:
 
         dead = health <= 0
         if dead.any():
-            for cause, mask in (("starved", dead & starving), ("collapsed from exhaustion", dead & ~starving)):
+            crammed = excess > 0
+            for cause, mask in (("starved", dead & starving),
+                                ("died of overcrowding", dead & ~starving & crammed),
+                                ("collapsed from exhaustion", dead & ~starving & ~crammed)):
                 if mask.any():
                     s.kill(rows[mask], cause, leave_corpse=True)
             rows = s.living_rows()

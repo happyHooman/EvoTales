@@ -165,8 +165,11 @@ CREATURE_DEFAULTS = {
     "night_vision": 0.5,           # fraction of vision kept at midnight
     "winter_hunger": 0.5,          # extra food drain in deep winter (x season_strength)
     # Fighting: hunters bite living prey; prey bites back (stronger in a herd)
-    "attack_damage": 0,            # health a bite takes off prey
-    "defense_damage": 0,           # health a caught prey's bite takes off the hunter
+    # Attack value: health one bite takes off, at full health and stamina. The bite
+    # weakens with the biter's condition: x (0.3 + 0.7 health fraction)
+    # x (0.3 + 0.7 stamina fraction). Used for hunting, biting back and rival fights.
+    "attack": 0,
+    "rival_bite": 0.4,             # fraction of the attack value used against its own kind
     "attack_cooldown": 1.0,        # seconds between bites
     "herd_radius": 60,             # how close peers count as "the herd"
     "herd_bonus": 0.5,             # each herd peer nearby adds this much to the defense bite
@@ -175,9 +178,13 @@ CREATURE_DEFAULTS = {
     # Alarm calls: prey running from a predator calls out to its own species
     "call_range": 0,               # how far a call carries, px (0 = this species doesn't call)
     "alarm_duration": 3.0,         # seconds peers flee after hearing a call
+    # Crowding: personal space is a resource too
+    "personal_space": 30,          # px; peers of its own kind closer than this crowd it
+    "crowd_limit": 4,              # more peers than this inside personal space = crammed
+    "crowd_damage": 0.3,           # health lost per second per peer over the limit
+    "aggression": 0.3,             # chance per decision that a crammed creature bites a too-close peer
     # Squabbles over the same food item
-    "dominance": 1.0,              # species strength in squabbles (x health)
-    "contest_damage": 4,           # bite the winner gives each loser
+    "dominance": 1.0,              # species weight in squabbles (x its current attack value)
     "contest_range": 25,           # how close to the food a rival must be to squabble
     "yield_time": 4.0,             # seconds a loser stays away from that food
     # Food chain: layers this creature eats. Threats are derived from other species' diets.
@@ -193,7 +200,7 @@ HERBIVORE_CONFIG = {
     "max_population": 60,
     "walk_speed": 30,              # runs at 45
     "max_stamina": 120,
-    "defense_damage": 4,
+    "attack": 4,
     "herd_bonus": 0.6,
     "call_range": 120,
     "herd_cohesion": 0.4,
@@ -221,8 +228,8 @@ CARNIVORE_CONFIG = {
     "reproduction_interval": 40.0,
     "reproduction_food_threshold": 180,
     "reproduction_food_cost": 80,
-    "attack_damage": 45,
-    "defense_damage": 10,
+    "attack": 45,
+    "crowd_limit": 1,              # loners
     "dominance": 2.0,
     "night_vision": 0.9,           # night hunters
     "crowd_penalty": 0.4,
@@ -246,8 +253,8 @@ SMARTIE_CONFIG = {
     "reproduction_interval": 35.0,
     "reproduction_food_threshold": 145,
     "reproduction_food_cost": 65,
-    "attack_damage": 15,
-    "defense_damage": 8,
+    "attack": 15,
+    "crowd_limit": 3,
     "dominance": 1.3,
     "call_range": 140,
     "crowd_penalty": 0.3,

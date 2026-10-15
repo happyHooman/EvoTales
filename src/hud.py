@@ -127,6 +127,8 @@ class Inspector:
             state += ", tired"
         if store.alive[r] and m.stand_timer[r] > 0:
             state += ", standing its ground"
+        if store.alive[r] and m.crowd[r] > store.p("crowd_limit", r):
+            state += f", crammed ({int(m.crowd[r])} too close)"
         # The genes that set this creature apart the most (each is x1.00 for its species)
         genes = sorted(GENES, key=lambda g: -abs(np.log(getattr(store.genes, g)[r])))[:4]
         gene_text = [f"{g.replace('_', ' ')} x{getattr(store.genes, g)[r]:.2f}" for g in genes]
@@ -136,6 +138,7 @@ class Inspector:
             f"health  {v.health[r]:5.1f} / {store.p('max_health', r):.0f}",
             f"stamina {v.stamina[r]:5.1f} / {store.p('max_stamina', r):.0f}",
             f"food    {v.food[r]:5.1f} / {store.p('max_food', r):.0f}",
+            f"attack  {float(store.attack_value(r)):5.1f} (max {store.p('attack', r):.0f})",
             "most unusual genes:",
             "  " + ",  ".join(gene_text[:2]),
             "  " + ",  ".join(gene_text[2:]),
