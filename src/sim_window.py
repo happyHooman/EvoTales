@@ -15,6 +15,7 @@ from entities.entity_manager import EntityManager
 from input_controller import CameraMode, InputController
 from overlays import Overlays
 from creature_renderer import CreatureRenderer
+from hud import Inspector, PopulationGraph
 from simulation.camera_controller import CameraController
 from sprite_manager import sprite_manager
 
@@ -49,6 +50,9 @@ class SimulationWindow(arcade.Window):
         self.paused = False
         self.overlays = Overlays()
         self.creature_renderer = None
+        self.graph = PopulationGraph(list(LAYERS))
+        self.inspector = Inspector()
+        self._press = None  # where a mouse press started (to tell clicks from drags)
         # Screen-space camera and cached Text object for the HUD (arcade.Text is far
         # cheaper than draw_text, which rebuilds glyphs every frame)
         self.hud_camera = arcade.Camera2D()
@@ -68,7 +72,8 @@ class SimulationWindow(arcade.Window):
         self.ui = UIManager(self)
         self.ui.enable()
         bar = UIBoxLayout(vertical=False, space_between=6)
-        for text, callback in (("Restart", self.restart), ("Pause", self.toggle_pause), ("Settings", self.open_settings)):
+        for text, callback in (("Restart", self.restart), ("Pause", self.toggle_pause), ("Graph", self.toggle_graph),
+                               ("Settings", self.open_settings)):
             button = UIFlatButton(text=text, width=96, height=30)
             button.set_handler("on_click", lambda event, cb=callback: cb())
             bar.add(button)
@@ -96,7 +101,12 @@ class SimulationWindow(arcade.Window):
     # ----------------------------------------------------------------- toolbar
 
     def restart(self):
+        self.graph.reset()
+        self.inspector.stop()
         self.setup()
+
+    def toggle_graph(self):
+        self.graph.visible = not self.graph.visible
 
     def toggle_pause(self):
         self.paused = not self.paused
@@ -143,6 +153,8 @@ class SimulationWindow(arcade.Window):
             self.camera_controller.use()
         self.overlays.draw()
         self.hud_camera.use()
+        self.graph.draw(self.width)
+        self.inspector.draw(self.entity_manager.creatures.store, self.height)
         self.hud_text.draw()
         self.ui.draw()
         self._frames += 1
@@ -157,7 +169,29 @@ class SimulationWindow(arcade.Window):
 
     def on_key_press(self, key, modifiers):
         """Handle key press events."""
+        if key == arcade.key.ESCAPE:
+            self.inspector.stop(self.entity_manager.creatures.store)
+            return
+        if key == arcade.key.G:
+            self.toggle_graph()
+            return
         self.input_controller.on_key_press(key, modifiers)
+
+    def on_mouse_press(self, x, y, button, modifiers):
+        self._press = (x, y)
+
+    def on_mouse_release(self, x, y, button, modifiers):
+        """A click (not a drag) on a creature follows it; on empty ground stops following."""
+        if self._press is None or button != arcade.MOUSE_BUTTON_LEFT:
+            return
+        px, py = self._press
+        self._press = None
+        if abs(x - px) + abs(y - py) > 6:
+            return
+        wx, wy, *_ = self.camera_controller.camera.unproject((x, y))
+        store = self.entity_manager.creatures.store
+        if not self.inspector.pick(store, wx, wy, radius=30.0 / self.camera_controller.camera.zoom ** 0.5):
+            self.inspector.stop(store)
 
     def on_key_release(self, key, modifiers):
         """Handle key release events."""
@@ -172,6 +206,10 @@ class SimulationWindow(arcade.Window):
             self._poll_settings()
         if not self.paused:
             self.entity_manager.update(delta_time)
+            self.graph.update(self.entity_manager, delta_time)
+        follow = self.inspector.update(self.entity_manager.creatures.store)
+        if follow is not None:
+            self.camera_controller.clamp_position(*follow)
         self.overlays.update(self.entity_manager, LAYERS[1:])
         self._hud_timer -= delta_time
         if self._hud_timer <= 0:

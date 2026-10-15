@@ -89,7 +89,7 @@ class CreatureStore:
         self.species_types = list(species_types)
         self.layer_index = {s.layer_name: i for i, s in enumerate(self.species_types)}
         self.sprite_sizes = sprite_sizes  # species index -> (width, height) in world px
-        self.core = Columns(used=B, alive=B, species=I, radius=F, generation=I)
+        self.core = Columns(used=B, alive=B, species=I, radius=F, generation=I, uid=(np.int64, -1))
         self.genes = Columns(**{g: (np.float64, 1.0) for g in GENES})
         self.body = Columns(x=F, y=F, vx=F, vy=F, heading=F, speed=F)
         self.command = Columns(heading=F, speed=F)
@@ -104,7 +104,10 @@ class CreatureStore:
         self.capacity = 0
         self.count = 0  # rows ever used (high-water mark); freed rows below it are reused
         self._free = []
+        self._next_uid = 0  # rows get reused; uid never repeats
         self._listeners = []  # called with rows that were freed
+        self.watched_uid = -1      # a creature someone is following (see hud.py)
+        self.watched_death = None  # ...and how it died
         self._grow(512)
         self.refresh_params()
 
@@ -176,6 +179,8 @@ class CreatureStore:
             getattr(self.genes, gene)[i] = np.clip(base * np.exp(rng.normal(0, sigma)), *GENE_RANGE)
         c.generation[i] = c.generation[parent] + 1 if parent is not None else 0
         c.species[i], c.used[i], c.alive[i] = s, True, True
+        c.uid[i] = self._next_uid
+        self._next_uid += 1
         c.radius[i] = max(w, h) / 2 * self.genes.size[i]
         heading = rng.uniform(0, TWO_PI)
         b.x[i], b.y[i], b.heading[i] = x, y, heading
@@ -204,6 +209,8 @@ class CreatureStore:
         rows = np.asarray(rows)
         for r in rows:
             self.world.record(f"{self.species_type(int(r)).layer_name} {cause}")
+            if self.core.uid[r] == self.watched_uid:
+                self.watched_death = cause
         self.core.alive[rows] = False
         self.body.speed[rows] = self.body.vx[rows] = self.body.vy[rows] = 0.0
         self.command.speed[rows] = 0.0
