@@ -1,10 +1,12 @@
 import json
+import math
 import random
 from collections import Counter
 
 import arcade
 from arcade.types import LRBT
 from config import DEFAULT_DAMPING, GRAVITY
+from sprite_config import SPRITE_ANGLE_OFFSET
 from entities.plant import Plant
 from entities.herbivore import Herbivore
 from entities.carnivore import Carnivore
@@ -20,6 +22,9 @@ CREATURE_TYPES = (Herbivore, Smarty, Carnivore)
 PLANT_TICK = 0.25
 # Cap the physics/behaviour step so a slow frame doesn't teleport creatures through walls
 MAX_STEP = 1 / 20
+ALL_CREATURES = "*creatures"  # pseudo-layer for nearby(): every creature layer at once
+# Cell size of the creature grid used for vision and avoidance queries
+GRID_CELL = 96
 
 
 class EntityManager():
@@ -51,6 +56,7 @@ class EntityManager():
             self.scene.add_sprite_list(creature_type.layer_name)
 
         self.creature_layers = [c.layer_name for c in CREATURE_TYPES]
+        self._grids = {}
         self.stats: Counter[str] = Counter()
         self._living: Counter[str] = Counter()
         self._removals: list = []
@@ -85,13 +91,16 @@ class EntityManager():
             self._plant_time = 0.0
             Plant.process_pending_seeds(self)
 
+        if not self._grids:
+            self._sync_and_index()
         for creature_type in CREATURE_TYPES:
             # Copy: creatures may give birth during the pass
             for creature in list(self.scene[creature_type.layer_name]):
                 creature.update(delta_time)
 
         self._flush_removals()
-        self.scene.physics_engine.step(delta_time)
+        self.scene.physics_engine.step(delta_time, resync_sprites=False)
+        self._sync_and_index()
 
     def get_map_size(self):
         return self.tile_map.width * self.tile_map.tile_width, self.tile_map.height * self.tile_map.tile_height
@@ -118,16 +127,89 @@ class EntityManager():
     def on_death(self, creature) -> None:
         self._living[creature.layer_name] -= 1
 
+    def _sync_and_index(self) -> None:
+        """
+        After the physics step, in one pass over every creature:
+        - copy body positions to the sprites (a lean version of arcade's resync,
+          which also re-reads angles and fires callbacks we don't use), and
+        - bucket creatures (corpses included) into GRID_CELL-sized cells with their
+          position cached. Creatures move every frame, so this per-frame rebuild is far
+          cheaper than keeping arcade's spatial hash in sync on every move, and it turns
+          vision/avoidance queries from O(N) scans into a few cells.
+        """
+        degrees = math.degrees
+        grids = {}
+        everyone = {}  # all layers together, for collision avoidance
+        for layer in self.creature_layers:
+            cells = {}
+            for e in self.scene[layer]:
+                if e.removed:
+                    continue
+                if e.alive:
+                    x, y = e._body.position
+                    e.position = (x, y)
+                    if e.heading != e.drawn_heading:
+                        e.drawn_heading = e.heading
+                        e.angle = -degrees(e.heading + SPRITE_ANGLE_OFFSET)
+                else:
+                    x, y = e.position
+                key = (int(x // GRID_CELL), int(y // GRID_CELL))
+                entry = (e, x, y)
+                bucket = cells.get(key)
+                if bucket is None:
+                    cells[key] = [entry]
+                else:
+                    bucket.append(entry)
+                bucket = everyone.get(key)
+                if bucket is None:
+                    everyone[key] = [entry]
+                else:
+                    bucket.append(entry)
+            grids[layer] = cells
+        grids[ALL_CREATURES] = everyone
+        self._grids = grids
+
+    def nearby_entries(self, layer_name: str, x: float, y: float, radius: float):
+        """Raw grid entries (entity, x, y) of a creature layer in the cells around a circle.
+        Cheaper than nearby() for hot loops; the caller does its own distance test."""
+        cells = self._grids.get(layer_name, {})
+        x0, x1 = int((x - radius) // GRID_CELL), int((x + radius) // GRID_CELL)
+        y0, y1 = int((y - radius) // GRID_CELL), int((y + radius) // GRID_CELL)
+        for cx in range(x0, x1 + 1):
+            for cy in range(y0, y1 + 1):
+                bucket = cells.get((cx, cy))
+                if bucket is not None:
+                    yield from bucket
+
     def nearby(self, layer_name: str, x: float, y: float, radius: float,
                include_corpses: bool = False) -> list[tuple]:
         """Entities in a layer within radius of (x, y), as (entity, distance) pairs.
         Living ones only, unless include_corpses."""
+        r2 = radius * radius
+        found = []
+        cells = self._grids.get(layer_name)
+        if cells is not None:
+            # Creature positions are as of the start of this frame (a sub-pixel lag)
+            x0, x1 = int((x - radius) // GRID_CELL), int((x + radius) // GRID_CELL)
+            y0, y1 = int((y - radius) // GRID_CELL), int((y + radius) // GRID_CELL)
+            for cx in range(x0, x1 + 1):
+                for cy in range(y0, y1 + 1):
+                    bucket = cells.get((cx, cy))
+                    if bucket is None:
+                        continue
+                    for e, ex, ey in bucket:
+                        if e.removed or not (e.alive or include_corpses):
+                            continue
+                        dx = ex - x
+                        dy = ey - y
+                        d2 = dx * dx + dy * dy
+                        if d2 <= r2:
+                            found.append((e, d2 ** 0.5))
+            return found
         sprite_list = self.scene[layer_name]
         hash_ = sprite_list.spatial_hash
         candidates = (hash_.get_sprites_near_rect(LRBT(x - radius, x + radius, y - radius, y + radius))
                       if hash_ is not None else sprite_list)
-        r2 = radius * radius
-        found = []
         for e in candidates:
             if e.removed or not (e.alive or include_corpses):
                 continue

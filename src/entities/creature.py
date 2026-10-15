@@ -9,6 +9,8 @@ still eat it, then vanishes.
 """
 import math
 import random
+
+import pymunk
 from .brain import Brain, Instinct, Intent, Observation, Percept
 from .entity import Entity
 from config import CREATURE_DEFAULTS
@@ -89,6 +91,8 @@ class Creature(Entity):
         self.boldness_timer = 0.0
 
         self.heading = random.uniform(0, TWO_PI)
+        self.drawn_heading = None  # heading the sprite angle was last set for
+        self.vx = self.vy = 0.0
         self.desired_heading = self.heading
         self.speed = 0.0
         self.running = False
@@ -96,12 +100,16 @@ class Creature(Entity):
         self.target = None  # food currently being approached
         self.avoid_offset = 0.0  # heading tweak to pass a creature we'd otherwise bump into
         self.flee_away = None    # straight-away heading while fleeing; dodges never cross 90 deg from it
+        self._replan = True      # True on frames right after a decision: expensive steering happens then
 
         self.brain = brain or Instinct()
         self.intent = Intent("wander")
 
         self._register(physics_params=cfg["physics"])
         self._body = self.scene.physics_engine.get_physics_object(self).body
+        # arcade installs a Python velocity callback on every dynamic body; we set velocity
+        # ourselves each frame, so use pymunk's built-in C update instead (big win at 1000s)
+        self._body.velocity_func = pymunk.Body.update_velocity
         self.world.on_birth(self)
 
     # ------------------------------------------------------------------ loop
@@ -134,11 +142,13 @@ class Creature(Entity):
         if self.think_timer <= 0:
             self.think_timer += cfg["think_interval"]
             self.intent = self.brain.decide(self.observe())
+            self._replan = True
             if self.intent.action != "flee":
                 self._check_walls()
             self._plan_avoidance()
 
         self.act(self.intent, delta_time)
+        self._replan = False
         self._steer(delta_time)
 
     def boldness_chance(self) -> float:
@@ -276,6 +286,8 @@ class Creature(Entity):
             return
         self.target = None
         self._set_gait(run=intent.run)
+        if not self._replan and self.flee_away is not None:
+            return  # escape route is re-planned with each decision, not every frame
         # Away from all visible predators, closer ones weighing more
         x, y = self.center_x, self.center_y
         ax = ay = 0.0
@@ -382,9 +394,12 @@ class Creature(Entity):
         self.heading = _angle_toward(self.heading, goal, self.config["turn_rate"] * delta_time)
         self.heading %= TWO_PI
         self.desired_heading %= TWO_PI
+        self.vx = self.speed * math.cos(self.heading)
+        self.vy = self.speed * math.sin(self.heading)
         body = self._body
-        body.velocity = (self.speed * math.cos(self.heading), self.speed * math.sin(self.heading))
-        body.angle = self.heading + SPRITE_ANGLE_OFFSET
+        body.velocity = (self.vx, self.vy)
+        if self.heading != self.drawn_heading:
+            body.angle = self.heading + SPRITE_ANGLE_OFFSET
 
     def _plan_avoidance(self) -> None:
         """
@@ -399,27 +414,30 @@ class Creature(Entity):
         if horizon <= 0 or self.speed <= 0:
             return
         x, y = self.center_x, self.center_y
-        vx, vy = self.speed * math.cos(self.heading), self.speed * math.sin(self.heading)
+        vx, vy = self.vx, self.vy
         look = horizon * (self.speed + 70) + 2 * self.radius
+        look2 = look * look
+        margin = cfg["avoid_margin"]
         soonest = horizon
         hit = None
-        for layer in self.world.creature_layers:
-            for other, _ in self.world.nearby(layer, x, y, look):
-                if other is self or other is self.target or other.target is self:
-                    continue
-                ox, oy = other.center_x - x, other.center_y - y
-                ovx = other.speed * math.cos(other.heading) - vx
-                ovy = other.speed * math.sin(other.heading) - vy
-                closing = ovx * ovx + ovy * ovy
-                if closing < 1e-6:
-                    continue
-                t = -(ox * ovx + oy * ovy) / closing  # time of closest approach
-                if t <= 0 or t >= soonest:
-                    continue
-                cx, cy = ox + ovx * t, oy + ovy * t      # where it will be relative to us
-                clearance = self.radius + other.radius + cfg["avoid_margin"]
-                if cx * cx + cy * cy < clearance * clearance:
-                    soonest, hit = t, (cx, cy)
+        for other, ex, ey in self.world.nearby_entries("*creatures", x, y, look):
+            ox, oy = ex - x, ey - y
+            if ox * ox + oy * oy > look2 or not other.alive:
+                continue
+            if other is self or other is self.target or other.target is self:
+                continue
+            ovx = other.vx - vx
+            ovy = other.vy - vy
+            closing = ovx * ovx + ovy * ovy
+            if closing < 1e-6:
+                continue
+            t = -(ox * ovx + oy * ovy) / closing  # time of closest approach
+            if t <= 0 or t >= soonest:
+                continue
+            cx, cy = ox + ovx * t, oy + ovy * t      # where it will be relative to us
+            clearance = self.radius + other.radius + margin
+            if cx * cx + cy * cy < clearance * clearance:
+                soonest, hit = t, (cx, cy)
         if hit is None:
             return
         # Which side of our path will it be on? Turn the other way (head-on: pass on the right).

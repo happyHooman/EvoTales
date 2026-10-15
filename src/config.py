@@ -78,7 +78,7 @@ CREATURE_DEFAULTS = {
     "avoid_turn": 0.9,             # max heading change (radians) to pass someone
     # Senses
     "vision_range": 200,
-    "think_interval": 0.15,        # seconds between decisions (steering runs every frame)
+    "think_interval": 0.2,         # seconds between decisions (steering runs every frame)
     # Energy
     "max_energy": 150,
     "birth_energy": 45,            # born as adults with a little energy to find food

@@ -82,7 +82,6 @@ class SimulationWindow(arcade.Window):
         data = settings.load()
         settings.apply(data)
         self.overlays.configure(**settings.display_options(data))
-        self.overlays.clear()
         self.entity_manager = EntityManager()
         map_width, map_height = self.entity_manager.get_map_size()
         self.camera_controller.setup(map_width, map_height)

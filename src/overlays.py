@@ -1,35 +1,82 @@
 """
 Debug overlays drawn on top of the world: each creature's field of view and an
-energy bar. Everything lives in one SpriteList so it is a single draw call, and
-nothing is synced while both overlays are off.
+energy bar. Everything is one instanced GPU draw: per frame we only gather a
+few floats per creature into a numpy array (no sprite objects to move around,
+which cost ~6 ms per frame at 2,000 creatures).
 """
 import arcade
-from PIL import Image, ImageDraw
+import numpy as np
+from arcade.gl import BufferDescription
 
-RING_SIZE = 256
 BAR_WIDTH, BAR_HEIGHT = 26, 4
-BAR_BG = (30, 30, 30, 200)
+BAR_BG = (30 / 255, 30 / 255, 30 / 255, 0.8)
 FOV_COLORS = {
     "herbivores": (120, 255, 120),
-    "carnivores": (255, 90, 70),
     "smarties": (170, 140, 255),
+    "carnivores": (255, 90, 70),
 }
+RECT, RING = 0.0, 1.0
+FLOATS_PER_INSTANCE = 9  # center(2) size(2) color(4) shape(1)
 
+VERTEX_SHADER = """
+#version 330
+uniform WindowBlock {
+    mat4 projection;
+    mat4 view;
+} window;
 
-def _ring_texture(rgb) -> arcade.Texture:
-    image = Image.new("RGBA", (RING_SIZE, RING_SIZE), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
-    draw.ellipse((2, 2, RING_SIZE - 3, RING_SIZE - 3), fill=(*rgb, 22), outline=(*rgb, 150), width=3)
-    return arcade.Texture(image, hash=f"fov-ring-{rgb}")
+in vec2 in_corner;      // unit quad, -1..1
+in vec2 in_center;
+in vec2 in_size;
+in vec4 in_color;
+in float in_shape;
+
+out vec2 v_uv;
+out vec4 v_color;
+out float v_shape;
+out float v_edge;
+
+void main() {
+    v_uv = in_corner;
+    v_color = in_color;
+    v_shape = in_shape;
+    v_edge = 3.0 / max(in_size.x, 1.0) * 2.0;  // ~3 world px of outline, in uv units
+    vec2 pos = in_center + in_corner * in_size * 0.5;
+    gl_Position = window.projection * window.view * vec4(pos, 0.0, 1.0);
+}
+"""
+
+FRAGMENT_SHADER = """
+#version 330
+in vec2 v_uv;
+in vec4 v_color;
+in float v_shape;
+in float v_edge;
+out vec4 out_color;
+
+void main() {
+    if (v_shape < 0.5) {            // rectangle
+        out_color = v_color;
+        return;
+    }
+    float d = length(v_uv);         // ring: faint fill, stronger outline
+    if (d > 1.0) discard;
+    float alpha = d > 1.0 - v_edge ? 0.6 : 0.09;
+    out_color = vec4(v_color.rgb, alpha);
+}
+"""
 
 
 class Overlays:
     def __init__(self):
         self.show_fov = False
         self.show_energy = False
-        self.sprites = arcade.SpriteList()
-        self._rings = {layer: _ring_texture(rgb) for layer, rgb in FOV_COLORS.items()}
-        self._attached = {}  # creature -> (ring, bar_bg, bar_fill)
+        self._world = None
+        self._layers = ()
+        self._program = None
+        self._geometry = None
+        self._instances = None
+        self._capacity = 0
 
     @property
     def enabled(self) -> bool:
@@ -37,55 +84,58 @@ class Overlays:
 
     def configure(self, show_fov: bool, show_energy: bool) -> None:
         self.show_fov, self.show_energy = bool(show_fov), bool(show_energy)
-        if not self.enabled:
-            self.clear()
-
-    def clear(self) -> None:
-        self.sprites.clear()
-        self._attached.clear()
 
     def update(self, world, creature_layers) -> None:
-        if not self.enabled:
-            return
-        seen = set()
-        for layer in creature_layers:
-            ring_texture = self._rings.get(layer)
-            for creature in world.scene[layer]:
-                if not creature.alive:
-                    continue
-                seen.add(creature)
-                parts = self._attached.get(creature)
-                if parts is None:
-                    parts = (
-                        arcade.Sprite(ring_texture),
-                        arcade.SpriteSolidColor(BAR_WIDTH, BAR_HEIGHT, color=BAR_BG),
-                        arcade.SpriteSolidColor(BAR_WIDTH, BAR_HEIGHT, color=arcade.color.WHITE),
-                    )
-                    self.sprites.extend(parts)
-                    self._attached[creature] = parts
-                self._sync(creature, *parts)
-        for creature in [c for c in self._attached if c not in seen]:
-            for sprite in self._attached.pop(creature):
-                sprite.remove_from_sprite_lists()
+        self._world, self._layers = world, creature_layers
 
-    def _sync(self, creature, ring, bar_bg, bar_fill) -> None:
-        x, y = creature.center_x, creature.center_y
-        ring.visible = self.show_fov
-        if self.show_fov:
-            ring.position = (x, y)
-            diameter = 2 * creature.config["vision_range"]
-            ring.size = (diameter, diameter)
-        bar_bg.visible = bar_fill.visible = self.show_energy
-        if self.show_energy:
-            ratio = max(0.0, min(1.0, creature.energy / creature.config["max_energy"]))
-            bar_y = y + creature.radius + 6
-            bar_bg.position = (x, bar_y)
-            width = max(BAR_WIDTH * ratio, 0.5)
-            bar_fill.width = width
-            bar_fill.position = (x - BAR_WIDTH / 2 + width / 2, bar_y)
-            # red (empty) -> yellow -> green (full)
-            bar_fill.color = (int(255 * min(1.0, 2 - 2 * ratio)), int(255 * min(1.0, 2 * ratio)), 40, 255)
+    def _setup(self, ctx, capacity: int) -> None:
+        if self._program is None:
+            self._program = ctx.program(vertex_shader=VERTEX_SHADER, fragment_shader=FRAGMENT_SHADER)
+            self._corners = ctx.buffer(data=np.array([-1, -1, 1, -1, -1, 1, 1, 1], dtype="f4"))
+        self._capacity = max(capacity, 1024)
+        self._instances = ctx.buffer(reserve=self._capacity * FLOATS_PER_INSTANCE * 4, usage="stream")
+        self._geometry = ctx.geometry(
+            [BufferDescription(self._corners, "2f", ["in_corner"]),
+             BufferDescription(self._instances, "2f 2f 4f 1f",
+                               ["in_center", "in_size", "in_color", "in_shape"], instanced=True)],
+            mode=ctx.TRIANGLE_STRIP,
+        )
+
+    def _gather(self) -> np.ndarray:
+        rows = []
+        add = rows.append
+        show_fov, show_energy = self.show_fov, self.show_energy
+        half_w = BAR_WIDTH / 2
+        for layer in self._layers:
+            ring_color = tuple(c / 255 for c in FOV_COLORS.get(layer, (255, 255, 255))) + (1.0,)
+            for c in self._world.scene[layer]:
+                if not c.alive:
+                    continue
+                x, y = c.position
+                cfg = c.config
+                if show_fov:
+                    d = 2 * cfg["vision_range"]
+                    add((x, y, d, d) + ring_color + (RING,))
+                if show_energy:
+                    ratio = max(0.0, min(1.0, c.energy / cfg["max_energy"]))
+                    by = y + c.radius + 6
+                    add((x, by, BAR_WIDTH, BAR_HEIGHT) + BAR_BG + (RECT,))
+                    w = max(BAR_WIDTH * ratio, 1.0)
+                    # red (empty) -> yellow -> green (full)
+                    add((x - half_w + w / 2, by, w, BAR_HEIGHT,
+                         min(1.0, 2 - 2 * ratio), min(1.0, 2 * ratio), 0.15, 1.0, RECT))
+        return np.array(rows, dtype="f4") if rows else np.zeros((0, FLOATS_PER_INSTANCE), "f4")
 
     def draw(self) -> None:
-        if self.enabled:
-            self.sprites.draw()
+        if not self.enabled or self._world is None:
+            return
+        data = self._gather()
+        count = len(data)
+        if count == 0:
+            return
+        ctx = arcade.get_window().ctx
+        if self._geometry is None or count > self._capacity:
+            self._setup(ctx, int(count * 1.5))
+        self._instances.write(data.tobytes())
+        ctx.enable(ctx.BLEND)
+        self._geometry.render(self._program, instances=count)
