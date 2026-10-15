@@ -30,12 +30,15 @@ PLANT_KEYS = [
 ]
 CREATURE_KEYS = [
     "initial_count", "max_population",
-    "walk_speed", "run_speed_multiplier", "run_energy_multiplier", "relax_speed_ratio",
+    "walk_speed", "run_speed_multiplier", "run_stamina_multiplier", "relax_speed_ratio",
     "turn_rate", "vision_range", "avoid_horizon", "avoid_margin",
-    "max_energy", "birth_energy", "alive_energy_cost", "walk_energy_cost",
-    "hungry_ratio", "full_ratio", "relaxed_ratio",
-    "reproduction_interval", "reproduction_energy_threshold", "reproduction_energy_cost",
+    "max_health", "max_stamina", "max_food", "birth_food", "birth_stamina_ratio",
+    "alive_stamina_cost", "walk_stamina_cost", "food_drain", "digest_rate", "digest_efficiency",
+    "starve_ratio", "starve_damage", "muscle_burn", "heal_rate", "heal_stamina_cost", "heal_food_cost",
+    "hungry_ratio", "full_ratio", "relaxed_ratio", "rest_ratio", "rested_ratio", "sprint_range",
     "hunger_boldness", "boldness_interval",
+    "reproduction_interval", "reproduction_food_threshold", "reproduction_health_ratio",
+    "reproduction_food_cost",
     "nutrition", "corpse_duration", "diet",
 ]
 # Only take effect when the world is rebuilt

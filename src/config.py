@@ -46,10 +46,16 @@ PLANT_CONFIG = {
 # Creature configuration.
 # CREATURE_DEFAULTS holds shared values; each species dict overrides what it needs
 # (merged in Creature.__init_subclass__). Rates are per second unless noted.
-# Energy is spent on being alive, walking, running and reproducing. Running is
-# run_speed_multiplier times faster than walking and costs run_energy_multiplier
-# times the walking energy. Relaxing creatures drift very slowly and only pay
-# the cost of being alive.
+#
+# Three bars per creature:
+#   health   - drops from starving, from running on empty (burning muscle) and from
+#              wounds; recovers while relaxing (like sleep). Zero health = death.
+#   stamina  - pays for everything the creature does: being alive, walking, running
+#              (run_speed_multiplier x faster for run_stamina_multiplier x the cost),
+#              healing. Refilled by digesting food. Empty = can't run, and further
+#              costs come out of health.
+#   food     - the hunger bar. Eating fills it; being alive drains it slowly; above
+#              the starving line it digests into stamina; below it, health drops.
 CREATURE_DEFAULTS = {
     "initial_count": 0,
     "max_population": 30,
@@ -57,7 +63,7 @@ CREATURE_DEFAULTS = {
     # Movement
     "walk_speed": 30,              # pixels per second
     "run_speed_multiplier": 1.5,   # running is 50% faster...
-    "run_energy_multiplier": 2.0,  # ...but costs twice the walking energy
+    "run_stamina_multiplier": 2.0,  # ...but costs twice the walking stamina
     "relax_speed_ratio": 0.15,     # relaxing speed as a fraction of walk_speed
     "turn_rate": 3.0,              # radians per second (smooth turning)
     "wander_turn_interval": 4.0,   # seconds between random heading changes when roaming
@@ -68,51 +74,81 @@ CREATURE_DEFAULTS = {
     # Senses
     "vision_range": 200,
     "think_interval": 0.2,         # seconds between decisions (steering runs every frame)
-    # Energy
-    "max_energy": 150,
-    "birth_energy": 45,            # born as adults with a little energy to find food
-    "alive_energy_cost": 0.3,      # per second, always
-    "walk_energy_cost": 0.5,       # per second while walking (running costs more, see above)
-    "hungry_ratio": 0.6,           # starts foraging below this fraction of max_energy...
+    # Bars
+    "max_health": 100,
+    "max_stamina": 100,
+    "max_food": 150,
+    "birth_food": 50,              # born as adults with a little food to go find more
+    "birth_stamina_ratio": 0.6,
+    # Stamina costs
+    "alive_stamina_cost": 0.4,
+    "walk_stamina_cost": 1.0,      # while walking; running costs run_stamina_multiplier x more
+    # Food / digestion
+    "food_drain": 0.3,             # being alive slowly empties the food bar
+    "digest_rate": 2.0,            # food per second turned into stamina (while stamina isn't full)
+    "digest_efficiency": 1.0,      # stamina gained per unit of food
+    "starve_ratio": 0.1,           # below this fraction of max_food: starving
+    "starve_damage": 1.0,          # health lost per second while starving
+    "muscle_burn": 0.5,            # health lost per stamina point owed when stamina is empty
+    # Relaxing heals (like sleep), at a price
+    "heal_rate": 1.5,              # health per second while relaxing and hurt
+    "heal_stamina_cost": 1.0,
+    "heal_food_cost": 0.5,
+    # Moods
+    "hungry_ratio": 0.6,           # starts foraging below this fraction of max_food...
     "full_ratio": 0.95,            # ...and keeps foraging until this fraction
-    "relaxed_ratio": 0.85,         # relaxes above this fraction when not foraging
+    "relaxed_ratio": 0.85,         # relaxes when food is above this (or when hurt / tired)
+    "rest_ratio": 0.15,            # tired below this fraction of stamina: rests even if hungry...
+    "rested_ratio": 0.7,           # ...until stamina is back at this fraction
     "eat_range": 10,               # extra reach beyond touching, in pixels
+    "sprint_range": 10000,         # hunters stalk at a walk and sprint once prey is this close
     # Hunger beats fear: a foraging creature may go for food with a predator in sight
-    # (unless that predator is chasing it). The chance grows from 0 at the hungry
-    # threshold to hunger_boldness at zero energy, re-rolled every boldness_interval s.
+    # (unless that predator is chasing it). The chance grows with hunger, from 0 at the
+    # hungry line to hunger_boldness when the food bar is empty; re-rolled every
+    # boldness_interval seconds.
     "hunger_boldness": 0.8,
     "boldness_interval": 2.0,
     # Reproduction
     "reproduction_interval": 30.0,  # seconds between births
-    "reproduction_energy_threshold": 120,
-    "reproduction_energy_cost": 55,
+    "reproduction_food_threshold": 120,
+    "reproduction_health_ratio": 0.9,
+    "reproduction_food_cost": 55,
     # Food chain: layers this creature eats. Threats are derived from other species' diets.
     "diet": [],
-    "nutrition": 60,               # energy a predator gains from eating this creature
+    "nutrition": 60,               # food a predator gains from eating this creature
     "corpse_duration": 20.0,       # seconds a dead body stays around and can still be eaten
 }
 
+# Herbivores: slow but enduring
 HERBIVORE_CONFIG = {
     "initial_count": 15,
     "max_population": 60,
     "walk_speed": 30,              # runs at 45
+    "max_stamina": 120,
     "diet": ["plants"],
     "nutrition": 80,
 }
 
+# Carnivores: fast sprinters with a small stamina pool, so long chases fail
 CARNIVORE_CONFIG = {
     "initial_count": 4,
     "max_population": 12,
     "walk_speed": 44,              # runs at 66, faster than smarties and herbivores
     "turn_rate": 3.5,
     "vision_range": 260,
-    "max_energy": 220,
-    "birth_energy": 70,
-    "alive_energy_cost": 0.4,
-    "walk_energy_cost": 0.6,
+    "max_health": 140,
+    "max_stamina": 24,
+    "run_stamina_multiplier": 3.0,  # sprinting is expensive for them
+    "sprint_range": 160,           # stalk, then sprint
+    "max_food": 220,
+    "birth_food": 80,
+    "alive_stamina_cost": 0.5,
+    "walk_stamina_cost": 1.1,
+    "digest_rate": 2.0,            # must beat walking cost, or hunters tire out just patrolling
+    "food_drain": 0.4,
     "reproduction_interval": 40.0,
-    "reproduction_energy_threshold": 180,
-    "reproduction_energy_cost": 80,
+    "reproduction_food_threshold": 180,
+    "reproduction_food_cost": 80,
     "diet": ["herbivores", "smarties"],
     "nutrition": 90,
 }
@@ -125,14 +161,14 @@ SMARTIE_CONFIG = {
     "walk_speed": 36,              # runs at 54, faster than herbivores
     "turn_rate": 2.5,
     "vision_range": 260,
-    "max_energy": 180,
-    "birth_energy": 55,
-    "alive_energy_cost": 0.35,
-    "walk_energy_cost": 0.55,
+    "max_stamina": 90,
+    "sprint_range": 140,
+    "max_food": 180,
+    "birth_food": 60,
+    "food_drain": 0.35,
     "reproduction_interval": 35.0,
-    "reproduction_energy_threshold": 145,
-    "reproduction_energy_cost": 65,
+    "reproduction_food_threshold": 145,
+    "reproduction_food_cost": 65,
     "diet": ["plants", "herbivores"],  # herbivores (nutrition 80) beat any plant (max 50)
     "nutrition": 100,
 }
-

@@ -1,6 +1,6 @@
 """
-Debug overlays drawn on top of the world: each creature's field of view and an
-energy bar. Everything is one instanced GPU draw: per frame we only gather a
+Debug overlays drawn on top of the world: each creature's field of view and its
+health / stamina / food bars. Everything is one instanced GPU draw: per frame we only gather a
 few floats per creature into a numpy array (no sprite objects to move around,
 which cost ~6 ms per frame at 2,000 creatures).
 """
@@ -8,8 +8,11 @@ import arcade
 import numpy as np
 from arcade.gl import BufferDescription
 
-BAR_WIDTH, BAR_HEIGHT = 26, 4
+BAR_WIDTH, BAR_HEIGHT = 26, 3
 BAR_BG = (30 / 255, 30 / 255, 30 / 255, 0.8)
+HEALTH_COLOR = (0.9, 0.2, 0.2, 1.0)
+STAMINA_COLOR = (1.0, 0.85, 0.2, 1.0)
+FOOD_COLOR = (0.35, 0.85, 0.3, 1.0)
 FOV_COLORS = {
     "herbivores": (120, 255, 120),
     "smarties": (170, 140, 255),
@@ -119,20 +122,25 @@ class Overlays:
             ring[:, 8] = RING
             parts.append(ring)
         if self.show_energy:
-            ratio = np.clip(store.vitals.energy[rows] / store.params["max_energy"][sp], 0, 1)
-            by = y + store.radius[rows] + 6
-            bg = np.empty((len(rows), FLOATS_PER_INSTANCE), "f4")
-            bg[:, 0], bg[:, 1], bg[:, 2], bg[:, 3] = x, by, BAR_WIDTH, BAR_HEIGHT
-            bg[:, 4:8] = BAR_BG
-            bg[:, 8] = RECT
-            w = np.maximum(BAR_WIDTH * ratio, 1.0)
-            fill = np.empty((len(rows), FLOATS_PER_INSTANCE), "f4")
-            fill[:, 0], fill[:, 1], fill[:, 2], fill[:, 3] = x - BAR_WIDTH / 2 + w / 2, by, w, BAR_HEIGHT
-            # red (empty) -> yellow -> green (full)
-            fill[:, 4] = np.minimum(1.0, 2 - 2 * ratio)
-            fill[:, 5] = np.minimum(1.0, 2 * ratio)
-            fill[:, 6], fill[:, 7], fill[:, 8] = 0.15, 1.0, RECT
-            parts += [bg, fill]
+            # Three bars above each creature: health (top), stamina, food (bottom)
+            vit, P = store.vitals, store.params
+            top = y + store.radius[rows] + 6
+            for k, (values, maximum, color) in enumerate((
+                    (vit.health[rows], P["max_health"][sp], HEALTH_COLOR),
+                    (vit.stamina[rows], P["max_stamina"][sp], STAMINA_COLOR),
+                    (vit.food[rows], P["max_food"][sp], FOOD_COLOR))):
+                ratio = np.clip(values / maximum, 0, 1)
+                by = top + (2 - k) * (BAR_HEIGHT + 1)
+                bg = np.empty((len(rows), FLOATS_PER_INSTANCE), "f4")
+                bg[:, 0], bg[:, 1], bg[:, 2], bg[:, 3] = x, by, BAR_WIDTH, BAR_HEIGHT
+                bg[:, 4:8] = BAR_BG
+                bg[:, 8] = RECT
+                w = np.maximum(BAR_WIDTH * ratio, 0.5)
+                fill = np.empty((len(rows), FLOATS_PER_INSTANCE), "f4")
+                fill[:, 0], fill[:, 1], fill[:, 2], fill[:, 3] = x - BAR_WIDTH / 2 + w / 2, by, w, BAR_HEIGHT
+                fill[:, 4:8] = color
+                fill[:, 8] = RECT
+                parts += [bg, fill]
         return np.concatenate(parts)
 
     def draw(self) -> None:

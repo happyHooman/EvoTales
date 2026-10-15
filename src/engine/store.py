@@ -7,7 +7,7 @@ has exactly one writer, so it is always clear who changed what:
     store.body     x, y, vx, vy, heading, speed                 -> PhysicsEngine
     store.command  heading, speed                               -> BehaviourSystem (what physics should do)
     store.mind     action, targets, gait, timers, steering      -> BehaviourSystem
-    store.vitals   energy, foraging, bold, timers               -> MetabolismSystem
+    store.vitals   health, stamina, food, moods, timers         -> MetabolismSystem
 """
 import math
 
@@ -17,14 +17,19 @@ TWO_PI = 2 * math.pi
 
 # Per-species parameters, copied from the live config dicts by refresh_params()
 PARAM_KEYS = [
-    "walk_speed", "run_speed_multiplier", "run_energy_multiplier", "relax_speed_ratio",
+    "walk_speed", "run_speed_multiplier", "run_stamina_multiplier", "relax_speed_ratio",
     "turn_rate", "wander_turn_interval", "wall_probe_distance",
     "avoid_horizon", "avoid_margin", "avoid_turn",
     "vision_range", "think_interval",
-    "max_energy", "birth_energy", "alive_energy_cost", "walk_energy_cost",
-    "hungry_ratio", "full_ratio", "relaxed_ratio", "eat_range",
+    "max_health", "max_stamina", "max_food", "birth_food", "birth_stamina_ratio",
+    "alive_stamina_cost", "walk_stamina_cost",
+    "food_drain", "digest_rate", "digest_efficiency", "starve_ratio", "starve_damage", "muscle_burn",
+    "heal_rate", "heal_stamina_cost", "heal_food_cost",
+    "hungry_ratio", "full_ratio", "relaxed_ratio", "rest_ratio", "rested_ratio", "eat_range",
+    "sprint_range",
     "hunger_boldness", "boldness_interval",
-    "reproduction_interval", "reproduction_energy_threshold", "reproduction_energy_cost",
+    "reproduction_interval", "reproduction_food_threshold", "reproduction_health_ratio",
+    "reproduction_food_cost",
     "nutrition", "corpse_duration", "max_population",
 ]
 
@@ -63,7 +68,7 @@ class CreatureStore:
         self.mind = Columns(action=I, target_creature=I, target_plant=I, running=B, relaxing=B,
                             goal=F, avoid_offset=F, flee_away=F,
                             think_timer=F, wander_timer=F, detour_timer=F)
-        self.vitals = Columns(energy=F, foraging=B, bold=B,
+        self.vitals = Columns(health=F, stamina=F, food=F, foraging=B, bold=B, tired=B,
                               boldness_timer=F, reproduction_timer=F, corpse_timer=F)
         self.capacity = 0
         self.count = 0  # rows ever used (high-water mark); freed rows below it are reused
@@ -109,7 +114,7 @@ class CreatureStore:
 
     # ------------------------------------------------------------- lifecycle
 
-    def spawn(self, layer_name, x, y, energy=None):
+    def spawn(self, layer_name, x, y, food=None):
         if self._free:
             i = self._free.pop()
         else:
@@ -135,8 +140,10 @@ class CreatureStore:
         m.think_timer[i] = rng.uniform(0, cfg["think_interval"])
         m.wander_timer[i] = rng.uniform(0, cfg["wander_turn_interval"])
         m.detour_timer[i] = 0.0
-        v.energy[i] = cfg["birth_energy"] if energy is None else energy
-        v.foraging[i], v.bold[i] = True, False
+        v.health[i] = cfg["max_health"]
+        v.stamina[i] = cfg["max_stamina"] * cfg["birth_stamina_ratio"]
+        v.food[i] = cfg["birth_food"] if food is None else food
+        v.foraging[i], v.bold[i], v.tired[i] = True, False, False
         v.boldness_timer[i] = v.corpse_timer[i] = 0.0
         v.reproduction_timer[i] = cfg["reproduction_interval"]
         return i

@@ -30,21 +30,44 @@ LABELS = {
     "turn_rate": "Turn rate (rad/s)",
     "avoid_horizon": "Avoid look-ahead (s)",
     "avoid_margin": "Avoid margin (px)",
-    "alive_energy_cost": "Alive energy cost (/s)",
-    "walk_energy_cost": "Walk energy cost (/s)",
+    "birth_stamina_ratio": "Birth stamina (fraction)",
+    "alive_stamina_cost": "Alive stamina cost (/s)",
+    "walk_stamina_cost": "Walk stamina cost (/s)",
+    "food_drain": "Food drain (/s)",
+    "digest_rate": "Digest rate (food/s)",
+    "digest_efficiency": "Stamina per food",
+    "starve_ratio": "Starving below (food fraction)",
+    "starve_damage": "Starving damage (hp/s)",
+    "muscle_burn": "Muscle burn (hp per stamina owed)",
+    "heal_rate": "Heal rate while relaxing (hp/s)",
+    "heal_stamina_cost": "Healing stamina cost (/s)",
+    "heal_food_cost": "Healing food cost (/s)",
+    "hungry_ratio": "Hungry below (food fraction)",
+    "full_ratio": "Full at (food fraction)",
+    "relaxed_ratio": "Relaxes above (food fraction)",
+    "rest_ratio": "Tired below (stamina fraction)",
+    "rested_ratio": "Rested at (stamina fraction)",
+    "sprint_range": "Sprints at prey within (px)",
     "reproduction_interval": "Reproduction interval (s)",
+    "reproduction_food_threshold": "Reproduction needs food",
+    "reproduction_health_ratio": "Reproduction needs health (fraction)",
+    "reproduction_food_cost": "Reproduction food cost",
     "boldness_interval": "Boldness re-roll (s)",
     "corpse_duration": "Corpse duration (s)",
 }
 TOOLTIPS = {
     "run_speed_multiplier": "Running speed = walk speed x this",
-    "run_energy_multiplier": "Running costs this many times the walking energy",
+    "run_stamina_multiplier": "Running costs this many times the walking stamina",
     "relax_speed_ratio": "Relaxing speed as a fraction of walk speed",
-    "hungry_ratio": "Starts foraging below this fraction of max energy",
-    "full_ratio": "Keeps foraging until this fraction of max energy",
-    "relaxed_ratio": "Relaxes above this fraction when not foraging",
-    "hunger_boldness": "Chance (at zero energy) that hunger beats fear of a predator that isn't chasing",
-    "nutrition": "Energy a predator gains from eating this creature",
+    "hungry_ratio": "Starts foraging below this fraction of the food bar",
+    "full_ratio": "Keeps foraging until this fraction of the food bar",
+    "relaxed_ratio": "Relaxes when the food bar is above this (also when hurt or out of breath)",
+    "rest_ratio": "Becomes tired below this fraction of stamina and rests (even if hungry) until rested",
+    "sprint_range": "Hunters stalk at a walk and only sprint once prey is this close",
+    "muscle_burn": "When stamina is empty, each stamina point still needed costs this much health",
+    "digest_rate": "Food turned into stamina per second, while stamina isn't full",
+    "hunger_boldness": "Chance (with an empty food bar) that hunger beats fear of a predator that isn't chasing",
+    "nutrition": "Food a predator gains from eating this creature",
     "avoid_horizon": "How far ahead creatures predict each other's paths to avoid bumping (0 = off)",
 }
 # Arrow-button step per setting. Integers stay integers.
@@ -52,12 +75,17 @@ STEPS = {
     "min_spacing": 1, "seed_min_distance": 5, "seed_range": 10,
     "max_growth_timer": 1.0, "reproduction_delay": 1.0, "min_edible_level": 1,
     "initial_count": 1, "max_population": 1,
-    "walk_speed": 1, "run_speed_multiplier": 0.05, "run_energy_multiplier": 0.1,
+    "walk_speed": 1, "run_speed_multiplier": 0.05, "run_stamina_multiplier": 0.1,
     "relax_speed_ratio": 0.05, "turn_rate": 0.1, "vision_range": 10,
     "avoid_horizon": 0.1, "avoid_margin": 1,
-    "max_energy": 5, "birth_energy": 5, "alive_energy_cost": 0.05, "walk_energy_cost": 0.05,
-    "hungry_ratio": 0.05, "full_ratio": 0.05, "relaxed_ratio": 0.05,
-    "reproduction_interval": 1.0, "reproduction_energy_threshold": 5, "reproduction_energy_cost": 5,
+    "max_health": 5, "max_stamina": 5, "max_food": 5, "birth_food": 5, "birth_stamina_ratio": 0.05,
+    "alive_stamina_cost": 0.05, "walk_stamina_cost": 0.05, "food_drain": 0.05,
+    "digest_rate": 0.1, "digest_efficiency": 0.05, "starve_ratio": 0.05, "starve_damage": 0.1,
+    "muscle_burn": 0.05, "heal_rate": 0.1, "heal_stamina_cost": 0.1, "heal_food_cost": 0.1,
+    "hungry_ratio": 0.05, "full_ratio": 0.05, "relaxed_ratio": 0.05, "rest_ratio": 0.05,
+    "rested_ratio": 0.05, "sprint_range": 10,
+    "reproduction_interval": 1.0, "reproduction_food_threshold": 5, "reproduction_health_ratio": 0.05,
+    "reproduction_food_cost": 5,
     "hunger_boldness": 0.05, "boldness_interval": 0.5,
     "nutrition": 5, "corpse_duration": 1.0,
 }
@@ -65,8 +93,9 @@ PLANT_STEPS = {"initial_count": 10}
 # Decimal point and no thousands separators, whatever the system locale
 NUMBER_LOCALE = QLocale.c()
 NUMBER_LOCALE.setNumberOptions(QLocale.NumberOption.OmitGroupSeparator)
-MINIMUMS = {"run_speed_multiplier": 1.05, "run_energy_multiplier": 1.0, "boldness_interval": 0.1,
-            "max_energy": 5, "min_edible_level": 1}
+MINIMUMS = {"run_speed_multiplier": 1.05, "run_stamina_multiplier": 1.0, "boldness_interval": 0.1,
+            "max_health": 5, "max_stamina": 5, "max_food": 5, "digest_efficiency": 0.05,
+            "min_edible_level": 1}
 MAXIMUMS = {"min_edible_level": 4, "hunger_boldness": 1.0}
 
 
@@ -105,7 +134,7 @@ class SettingsWindow(QWidget):
 
         view = QGroupBox("View (applies immediately)")
         view_row = QHBoxLayout(view)
-        for key, text in (("show_fov", "Show field of view"), ("show_energy", "Show energy bars")):
+        for key, text in (("show_fov", "Show field of view"), ("show_energy", "Show health / stamina / food bars")):
             box = QCheckBox(text)
             box.setChecked(self.view_options[key])
             box.toggled.connect(lambda checked, k=key: self.toggle_view(k, checked))

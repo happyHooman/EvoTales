@@ -2,7 +2,7 @@
 The creature engine. Creatures are rows in numpy arrays (CreatureStore); three
 systems own and update them, always in this order every frame:
 
-    1. MetabolismSystem  writes store.vitals   energy, hunger, boldness, starvation, corpses
+    1. MetabolismSystem  writes store.vitals   health, stamina, food, moods, deaths, corpses
     2. BehaviourSystem   writes store.mind     decides and acts; writes store.command
                          (heading + speed it wants)
     3. PhysicsEngine     writes store.body     turns toward the command, moves, slides along
@@ -31,8 +31,8 @@ class CreatureEngine:
         self.physics.step(self.store.living_rows(), dt)
 
     # Convenience pass-throughs
-    def spawn(self, layer_name, x, y, energy=None):
-        return self.store.spawn(layer_name, x, y, energy)
+    def spawn(self, layer_name, x, y, food=None):
+        return self.store.spawn(layer_name, x, y, food)
 
     def set_brain(self, row, brain):
         self.behaviour.set_brain(row, brain)

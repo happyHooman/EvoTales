@@ -13,14 +13,16 @@ Per step:
 
 Instinct (shared by every species; its only dice roll is how much hunger
 overrides fear):
-1. Predators in sight: run from any that is running or chasing me, otherwise
-   walk away; this holds while relaxing too. A bold forager ignores predators
+1. Predators in sight: run from any that is running, otherwise walk away;
+   this holds while relaxing too. Hunters stalk at a walk and sprint once
+   within sprint_range. A bold forager ignores predators
    that aren't chasing it and goes for food.
-2. Reproduce when the interval and energy allow it.
+2. Reproduce when the interval, food and health allow it.
 3. Foraging (hungry until full): keep the current target while it's in sight,
    else go for the closest food. Run at moving prey, walk to plants, corpses
    and still prey. No food in sight: roam.
-4. Well fed: relax (drift slowly). 5. Otherwise roam.
+4. Tired (until rested), well fed or hurt: relax (drift slowly; heals like sleep).
+5. Otherwise roam.
 
 New activities plug in here: a new action code, a branch in _decide_region,
 and a handler in act() that sets mind.goal and the gait.
@@ -126,9 +128,11 @@ class BehaviourSystem:
         # Threats: living creatures whose species eats mine
         is_threat = in_sight & s.alive[cols][None, :] & s.eats[others_sp[None, :], rs[:, None]]
         has_threat = is_threat.any(axis=1)
-        attacking = is_threat & (others_target[None, :] == rows[:, None])
+        # A hunter that has picked me and is running at me is attacking; one that is
+        # stalking me at a walk only looks like a predator walking by
+        attacking = is_threat & (others_target[None, :] == rows[:, None]) & m.running[cols][None, :]
         any_attacking = attacking.any(axis=1)
-        any_alarming = (is_threat & (m.running[cols][None, :] | (others_target[None, :] == rows[:, None]))).any(axis=1)
+        any_alarming = (is_threat & m.running[cols][None, :]).any(axis=1)
 
         # Creature food: species I eat, alive or corpse
         is_cfood = in_sight & s.eats[rs[:, None], others_sp[None, :]]
@@ -182,10 +186,14 @@ class BehaviourSystem:
         target_c = np.where(target_p >= 0, -1, target_c)
 
         # --- instinct ---
-        energy, max_e, foraging = v.energy[rows], P["max_energy"][rs], v.foraging[rows]
-        relaxed = ~foraging & (energy / max_e >= P["relaxed_ratio"][rs])
-        can_repro = ((energy >= P["reproduction_energy_threshold"][rs])
-                     & (energy > P["reproduction_energy_cost"][rs])
+        food, foraging = v.food[rows], v.foraging[rows]
+        tired = v.tired[rows]
+        # Relax when well fed or to heal; a tired creature rests even when hungry
+        relaxed = tired | (~foraging & ((food / P["max_food"][rs] >= P["relaxed_ratio"][rs])
+                                        | (v.health[rows] < P["max_health"][rs])))
+        can_repro = ((food >= P["reproduction_food_threshold"][rs])
+                     & (food > P["reproduction_food_cost"][rs])
+                     & (v.health[rows] >= P["reproduction_health_ratio"][rs] * P["max_health"][rs])
                      & (v.reproduction_timer[rows] <= 0))
         if can_repro.any():
             can_repro &= s.populations()[rs] < P["max_population"][rs]
@@ -193,8 +201,8 @@ class BehaviourSystem:
         hunger_wins = v.bold[rows] & foraging & has_food & ~any_attacking
         flee = has_threat & ~hunger_wins
         repro = ~flee & can_repro
-        eat = ~flee & ~repro & foraging & has_food
-        relax = ~flee & ~repro & ~eat & ~foraging & relaxed
+        eat = ~flee & ~repro & ~tired & foraging & has_food
+        relax = ~flee & ~repro & ~eat & relaxed
         action = np.full(len(rows), WANDER)
         action[relax] = RELAX
         action[eat] = EAT
@@ -220,14 +228,18 @@ class BehaviourSystem:
         if len(tp_rows):
             claim[m.target_plant[tp_rows]] = tp_rows  # claim plants being walked to
 
-        # Run at moving prey; walk to plants, corpses and still prey
+        # Stalk moving prey at a walk, sprint once within sprint_range; walk to plants,
+        # corpses and still prey
         tc = m.target_creature[rows]
         prey_moving = np.zeros(len(rows), dtype=bool)
         has_tc = tc >= 0
         if has_tc.any():
             t = tc[has_tc]
+            hr = rows[has_tc]
+            gap2 = (s.body.x[t] - s.body.x[hr]) ** 2 + (s.body.y[t] - s.body.y[hr]) ** 2
             prey_moving[has_tc] = s.alive[t] & (
-                s.body.speed[t] > s.p("walk_speed", t) * s.p("relax_speed_ratio", t) * 1.01)
+                s.body.speed[t] > s.p("walk_speed", t) * s.p("relax_speed_ratio", t) * 1.01) & (
+                gap2 <= s.p("sprint_range", hr) ** 2)
         m.running[rows] = ((action == EAT) & prey_moving) | ((action == FLEE) & any_alarming)
         for j, run in brain_runs.items():
             m.running[rows[j]] = run and action[j] in (EAT, FLEE)
@@ -266,12 +278,14 @@ class BehaviourSystem:
                    for j in np.nonzero(threat_row)[0]]
         food.sort(key=lambda p: p.distance)
         threats.sort(key=lambda p: p.distance)
-        ratio = v.energy[r] / P["max_energy"][sp]
+        food_ratio = v.food[r] / P["max_food"][sp]
         current = (("creature", int(m.target_creature[r])) if m.target_creature[r] >= 0 else
                    ("plant", int(m.target_plant[r])) if m.target_plant[r] >= 0 else None)
-        obs = Observation(energy=float(v.energy[r]), energy_ratio=float(ratio),
+        obs = Observation(health_ratio=float(v.health[r] / P["max_health"][sp]),
+                          stamina_ratio=float(v.stamina[r] / P["max_stamina"][sp]),
+                          food_ratio=float(food_ratio),
                           foraging=bool(v.foraging[r]), bold=bool(v.bold[r]),
-                          relaxed=bool(not v.foraging[r] and ratio >= P["relaxed_ratio"][sp]),
+                          relaxed=bool(not v.foraging[r] and food_ratio >= P["relaxed_ratio"][sp]),
                           can_reproduce=bool(can_repro), current_target=current,
                           food=food[:5], threats=threats[:3])
         intent: Intent = brain.decide(obs)
@@ -290,7 +304,8 @@ class BehaviourSystem:
         s, m, cmd = self.store, self.store.mind, self.store.command
         action = m.action[rows]
         walk = s.p("walk_speed", rows)
-        running = m.running[rows] & ((action == EAT) | (action == FLEE))
+        # Running needs stamina: an exhausted creature can only walk
+        running = m.running[rows] & ((action == EAT) | (action == FLEE)) & (s.vitals.stamina[rows] > 1.0)
         m.running[rows] = running
         m.relaxing[rows] = action == RELAX
         cmd.speed[rows] = np.where(running, walk * s.p("run_speed_multiplier", rows),
@@ -357,7 +372,7 @@ class BehaviourSystem:
         elif tp >= 0:
             gain = self.world.eat_plant(tp)
         if gain:
-            self.metabolism.gain(r, gain)
+            self.metabolism.eat(r, gain)
         m.action[r] = WANDER
         m.target_creature[r] = m.target_plant[r] = -1
         m.running[r] = False

@@ -29,8 +29,9 @@ class Percept:
 
 @dataclass(slots=True)
 class Observation:
-    energy: float
-    energy_ratio: float
+    health_ratio: float       # 0..1 of max health
+    stamina_ratio: float      # 0..1 of max stamina
+    food_ratio: float         # 0..1 of the food (hunger) bar
     foraging: bool            # hungry, and stays so until full
     bold: bool                # hunger currently outweighs fear (a dice roll that grows with hunger)
     relaxed: bool             # well fed and not foraging
