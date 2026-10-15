@@ -14,6 +14,7 @@ from config import CAMERA_SETTINGS, SCREEN_TITLE, WINDOW_HEIGHT, WINDOW_WIDTH
 from entities.entity_manager import EntityManager
 from input_controller import CameraMode, InputController
 from overlays import Overlays
+from creature_renderer import CreatureRenderer
 from simulation.camera_controller import CameraController
 from sprite_manager import sprite_manager
 
@@ -47,6 +48,7 @@ class SimulationWindow(arcade.Window):
         self.entity_manager: Optional[EntityManager] = None
         self.paused = False
         self.overlays = Overlays()
+        self.creature_renderer = None
         # Screen-space camera and cached Text object for the HUD (arcade.Text is far
         # cheaper than draw_text, which rebuilds glyphs every frame)
         self.hud_camera = arcade.Camera2D()
@@ -83,6 +85,9 @@ class SimulationWindow(arcade.Window):
         settings.apply(data)
         self.overlays.configure(**settings.display_options(data))
         self.entity_manager = EntityManager()
+        if self.creature_renderer is None:
+            from entities.entity_manager import CREATURE_TYPES
+            self.creature_renderer = CreatureRenderer(CREATURE_TYPES)
         map_width, map_height = self.entity_manager.get_map_size()
         self.camera_controller.setup(map_width, map_height)
         self.entity_manager.spawn_initial_population()
@@ -128,6 +133,7 @@ class SimulationWindow(arcade.Window):
         self.clear()
         self.camera_controller.use()
         self.entity_manager.scene.draw()
+        self.creature_renderer.draw(self.entity_manager.swarm)
         self.overlays.draw()
         self.hud_camera.use()
         self.hud_text.draw()

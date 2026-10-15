@@ -1,5 +1,3 @@
-from arcade import PymunkPhysicsEngine
-
 # Window settings (visible area)
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
@@ -43,10 +41,6 @@ PLANT_CONFIG = {
     },
     "provided_energy": [10, 20, 30, 50],
     "min_edible_level": 2,  # grazing resets a plant to stage 1; seedlings can't be eaten
-    "physics": {
-        "collision_type": "plant",
-        "body_type": PymunkPhysicsEngine.STATIC,
-    },
 }
 
 # Creature configuration.
@@ -56,11 +50,6 @@ PLANT_CONFIG = {
 # run_speed_multiplier times faster than walking and costs run_energy_multiplier
 # times the walking energy. Relaxing creatures drift very slowly and only pay
 # the cost of being alive.
-_CREATURE_PHYSICS = {
-    "moment_of_inertia": PymunkPhysicsEngine.MOMENT_INF,
-    "damping": 0.9,
-}
-
 CREATURE_DEFAULTS = {
     "initial_count": 0,
     "max_population": 30,
@@ -101,7 +90,6 @@ CREATURE_DEFAULTS = {
     "diet": [],
     "nutrition": 60,               # energy a predator gains from eating this creature
     "corpse_duration": 20.0,       # seconds a dead body stays around and can still be eaten
-    "physics": _CREATURE_PHYSICS,
 }
 
 HERBIVORE_CONFIG = {
@@ -148,6 +136,3 @@ SMARTIE_CONFIG = {
     "nutrition": 100,
 }
 
-# Physics settings
-DEFAULT_DAMPING = .6
-GRAVITY = (0, 0)

@@ -102,29 +102,39 @@ class Overlays:
         )
 
     def _gather(self) -> np.ndarray:
-        rows = []
-        add = rows.append
-        show_fov, show_energy = self.show_fov, self.show_energy
-        half_w = BAR_WIDTH / 2
-        for layer in self._layers:
-            ring_color = tuple(c / 255 for c in FOV_COLORS.get(layer, (255, 255, 255))) + (1.0,)
-            for c in self._world.scene[layer]:
-                if not c.alive:
-                    continue
-                x, y = c.position
-                cfg = c.config
-                if show_fov:
-                    d = 2 * cfg["vision_range"]
-                    add((x, y, d, d) + ring_color + (RING,))
-                if show_energy:
-                    ratio = max(0.0, min(1.0, c.energy / cfg["max_energy"]))
-                    by = y + c.radius + 6
-                    add((x, by, BAR_WIDTH, BAR_HEIGHT) + BAR_BG + (RECT,))
-                    w = max(BAR_WIDTH * ratio, 1.0)
-                    # red (empty) -> yellow -> green (full)
-                    add((x - half_w + w / 2, by, w, BAR_HEIGHT,
-                         min(1.0, 2 - 2 * ratio), min(1.0, 2 * ratio), 0.15, 1.0, RECT))
-        return np.array(rows, dtype="f4") if rows else np.zeros((0, FLOATS_PER_INSTANCE), "f4")
+        """Instance rows for every living creature, built with array operations."""
+        swarm = self._world.swarm
+        n = swarm.count
+        rows = np.nonzero(swarm.alive[:n])[0]
+        if not len(rows):
+            return np.zeros((0, FLOATS_PER_INSTANCE), "f4")
+        x, y, sp = swarm.x[rows], swarm.y[rows], swarm.species[rows]
+        parts = []
+        if self.show_fov:
+            ring = np.empty((len(rows), FLOATS_PER_INSTANCE), "f4")
+            d = 2 * swarm.params["vision_range"][sp]
+            colors = np.array([tuple(c / 255 for c in FOV_COLORS.get(layer, (255, 255, 255))) + (1.0,)
+                               for layer in self._layers], "f4")
+            ring[:, 0], ring[:, 1], ring[:, 2], ring[:, 3] = x, y, d, d
+            ring[:, 4:8] = colors[sp]
+            ring[:, 8] = RING
+            parts.append(ring)
+        if self.show_energy:
+            ratio = np.clip(swarm.energy[rows] / swarm.params["max_energy"][sp], 0, 1)
+            by = y + swarm.radius[rows] + 6
+            bg = np.empty((len(rows), FLOATS_PER_INSTANCE), "f4")
+            bg[:, 0], bg[:, 1], bg[:, 2], bg[:, 3] = x, by, BAR_WIDTH, BAR_HEIGHT
+            bg[:, 4:8] = BAR_BG
+            bg[:, 8] = RECT
+            w = np.maximum(BAR_WIDTH * ratio, 1.0)
+            fill = np.empty((len(rows), FLOATS_PER_INSTANCE), "f4")
+            fill[:, 0], fill[:, 1], fill[:, 2], fill[:, 3] = x - BAR_WIDTH / 2 + w / 2, by, w, BAR_HEIGHT
+            # red (empty) -> yellow -> green (full)
+            fill[:, 4] = np.minimum(1.0, 2 - 2 * ratio)
+            fill[:, 5] = np.minimum(1.0, 2 * ratio)
+            fill[:, 6], fill[:, 7], fill[:, 8] = 0.15, 1.0, RECT
+            parts += [bg, fill]
+        return np.concatenate(parts)
 
     def draw(self) -> None:
         if not self.enabled or self._world is None:

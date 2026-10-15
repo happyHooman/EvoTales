@@ -7,7 +7,6 @@ from sprite_manager import sprite_manager
 
 class Plant(Entity):
     layer_name = "plants"
-    use_physics = False  # Soft plants: creatures pass through, no collision
 
     _pending_seeds: list = []  # List of (plant, seed_x, seed_y) for batch processing
 
@@ -119,7 +118,8 @@ class Plant(Entity):
 
         self.growth_level = growth_level
         self.full_grown = self.growth_level >= self.config["max_growth_level"]
-        self._register(physics_params=self.config.get("physics", {}))
+        self._register()
+        world.plant_added(self)
 
     def set_growth_level(self, new_growth_level: int):
         self.full_grown = new_growth_level >= self.config["max_growth_level"]
@@ -131,6 +131,7 @@ class Plant(Entity):
             if self.growth_level != requested_level or self.texture != self.growth_textures[texture_index]:
                 self.growth_level = requested_level
                 self.texture = self.growth_textures[texture_index]
+                self.world.plant_changed(self)
                 # Reset timer with randomization
                 variability = 0.2
                 self.growth_timer = self.config["max_growth_timer"] * random.uniform(1-variability, 1+variability)
@@ -149,6 +150,7 @@ class Plant(Entity):
         self.growth_level = 1
         self.texture = self.growth_textures[0]
         self.growth_timer = self.config["max_growth_timer"] * random.uniform(0.8, 1.2)
+        self.world.plant_changed(self)
         return energy
 
     def update(self, delta_time: float = 1/60):
