@@ -10,9 +10,9 @@ import signal
 import sys
 
 from PySide6.QtCore import QLocale, QTimer
-from PySide6.QtWidgets import (QApplication, QCheckBox, QDoubleSpinBox, QGridLayout, QGroupBox,
-                               QHBoxLayout, QLabel, QMessageBox, QPushButton, QScrollArea, QSpinBox,
-                               QTabWidget, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QGridLayout, QGroupBox,
+                               QHBoxLayout, QInputDialog, QLabel, QMessageBox, QPushButton, QScrollArea,
+                               QSpinBox, QTabWidget, QVBoxLayout, QWidget)
 
 # Allow running from the repo root (paths in the code are relative to it)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -56,6 +56,14 @@ LABELS = {
     "corpse_duration": "Corpse duration (s)",
     "mutation_rate": "Mutation at birth",
     "reintroduce_after": "Reintroduce if extinct after (s)",
+    "winter_wither": "Winter wither chance (/s)",
+    "night_vision": "Night vision (fraction kept)",
+    "winter_hunger": "Extra winter hunger",
+    "day_length": "Day length (s)",
+    "year_length": "Year length (s, 4 seasons)",
+    "season_strength": "Season strength",
+    "night_darkness": "Night darkness",
+    "start_time": "Start time (s, on restart)",
     "attack_damage": "Bite damage (hunting)",
     "defense_damage": "Bite-back damage",
     "attack_cooldown": "Seconds between bites",
@@ -101,6 +109,8 @@ STEPS = {
     "hunger_boldness": 0.05, "boldness_interval": 0.5,
     "nutrition": 5, "corpse_duration": 1.0, "mutation_rate": 0.01, "founder_variation": 0.01,
     "reintroduce_after": 10.0,
+    "night_vision": 0.05, "winter_hunger": 0.05, "winter_wither": 0.01,
+    "day_length": 10.0, "year_length": 60.0, "season_strength": 0.05, "night_darkness": 0.05, "start_time": 10.0,
     "attack_damage": 1, "defense_damage": 1, "attack_cooldown": 0.1,
     "herd_radius": 5, "herd_bonus": 0.05, "crowd_penalty": 0.05, "herd_cohesion": 0.05,
 }
@@ -108,10 +118,11 @@ PLANT_STEPS = {"initial_count": 10}
 # Decimal point and no thousands separators, whatever the system locale
 NUMBER_LOCALE = QLocale.c()
 NUMBER_LOCALE.setNumberOptions(QLocale.NumberOption.OmitGroupSeparator)
-MINIMUMS = {"run_speed_multiplier": 1.05, "run_stamina_multiplier": 1.0, "boldness_interval": 0.1,
+MINIMUMS = {"day_length": 10.0, "year_length": 60.0, "run_speed_multiplier": 1.05, "run_stamina_multiplier": 1.0, "boldness_interval": 0.1,
             "max_health": 5, "max_stamina": 5, "max_food": 5, "digest_efficiency": 0.05,
             "min_edible_level": 1}
-MAXIMUMS = {"min_edible_level": 4, "hunger_boldness": 1.0, "herd_cohesion": 1.0}
+MAXIMUMS = {"min_edible_level": 4, "hunger_boldness": 1.0, "herd_cohesion": 1.0, "night_vision": 1.0,
+            "season_strength": 0.95, "night_darkness": 0.95}
 
 
 def _step(section, key):
@@ -173,6 +184,20 @@ class SettingsWindow(QWidget):
         buttons.addStretch()
         layout.addLayout(buttons)
 
+        presets = QGroupBox("Presets (scenarios)")
+        row = QHBoxLayout(presets)
+        self.preset_box = QComboBox()
+        self.preset_box.setMinimumWidth(220)
+        row.addWidget(self.preset_box)
+        for text, slot in (("Load", self.load_preset), ("Save as...", self.save_preset),
+                           ("Delete", self.delete_preset)):
+            button = QPushButton(text)
+            button.clicked.connect(slot)
+            row.addWidget(button)
+        row.addStretch()
+        layout.addWidget(presets)
+        self._refresh_presets()
+
         self.status = QLabel()
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
@@ -181,7 +206,7 @@ class SettingsWindow(QWidget):
         self.warnings.setStyleSheet("color: #d9534f;")
         layout.addWidget(self.warnings)
         self._refresh_warnings()
-        self.resize(780, 690)
+        self.resize(800, 860)
 
     # ------------------------------------------------------------------ layout
 
@@ -276,6 +301,56 @@ class SettingsWindow(QWidget):
                 box.setChecked(food in self.values[section]["diet"])
         self._loading = False
         self._mark_pending(f"{section.capitalize()}: code defaults restored, not applied yet.")
+
+    # ---------------------------------------------------------------- presets
+
+    def _refresh_presets(self, select=None):
+        self.preset_box.clear()
+        names = settings.list_presets()
+        self.preset_box.addItems(names)
+        if select in names:
+            self.preset_box.setCurrentText(select)
+
+    def save_preset(self):
+        name, ok = QInputDialog.getText(self, "Save preset", "Preset name:",
+                                        text=self.preset_box.currentText())
+        if not ok or not name.strip():
+            return
+        for spin in self.inputs.values():
+            spin.interpretText()
+        try:
+            saved = settings.save_preset(name, self.values)
+        except ValueError as e:
+            QMessageBox.warning(self, "Save preset", str(e))
+            return
+        self._refresh_presets(select=saved)
+        self.status.setText(f"Saved preset '{saved}' (every tab).")
+
+    def load_preset(self):
+        name = self.preset_box.currentText()
+        if not name:
+            return
+        self.values = settings.load_preset(name)
+        self._show_values()
+        self._mark_pending(f"Loaded preset '{name}' into the form. Apply + restart to run it as a scenario.")
+
+    def delete_preset(self):
+        name = self.preset_box.currentText()
+        if not name or QMessageBox.question(self, "Delete preset", f"Delete preset '{name}'?") \
+                != QMessageBox.StandardButton.Yes:
+            return
+        settings.delete_preset(name)
+        self._refresh_presets()
+        self.status.setText(f"Deleted preset '{name}'.")
+
+    def _show_values(self):
+        """Put self.values into every field without marking them as user edits."""
+        self._loading = True
+        for (section, key), spin in self.inputs.items():
+            spin.setValue(self.values[section][key])
+        for (section, food), box in self.diet_boxes.items():
+            box.setChecked(food in self.values[section]["diet"])
+        self._loading = False
 
     def apply(self, restart):
         # A number still being typed counts (buttons on macOS don't take focus, so the

@@ -32,7 +32,7 @@ PARAM_KEYS = [
     "reproduction_interval", "reproduction_food_threshold", "reproduction_health_ratio",
     "reproduction_food_cost",
     "nutrition", "corpse_duration", "max_population",
-    "mutation_rate", "founder_variation",
+    "mutation_rate", "founder_variation", "night_vision", "winter_hunger",
     "attack_damage", "defense_damage", "attack_cooldown",
     "herd_radius", "herd_bonus", "crowd_penalty", "herd_cohesion",
 ]
@@ -55,6 +55,8 @@ GENE_EFFECTS = {
     "defense_damage": [("size", 1.0)],
 }
 GENE_RANGE = (0.5, 2.0)
+# Parameters the environment scales per species (day/night, seasons): param -> Environment attribute
+ENV_EFFECTS = {"vision_range": "vision", "food_drain": "food_drain"}
 
 # Action codes (store.mind.action)
 WANDER, RELAX, EAT, FLEE = 0, 1, 2, 3
@@ -94,6 +96,7 @@ class CreatureStore:
                             think_timer=F, wander_timer=F, detour_timer=F, attack_timer=F)
         self.vitals = Columns(health=F, stamina=F, food=F, foraging=B, bold=B, tired=B,
                               boldness_timer=F, reproduction_timer=F, corpse_timer=F)
+        self.env = None  # Environment, set by the world
         self.capacity = 0
         self.count = 0  # rows ever used (high-water mark); freed rows below it are reused
         self._free = []
@@ -128,9 +131,12 @@ class CreatureStore:
 
     def p(self, key, rows):
         """A parameter per row: the species value, shaped by each creature's genes."""
-        value = self.params[key][self.core.species[rows]]
+        sp = self.core.species[rows]
+        value = self.params[key][sp]
         for gene, exponent in GENE_EFFECTS.get(key, ()):
             value = value * getattr(self.genes, gene)[rows] ** exponent
+        if self.env is not None and key in ENV_EFFECTS:
+            value = value * getattr(self.env, ENV_EFFECTS[key])[sp]
         return value
 
     def gene_max(self, gene):

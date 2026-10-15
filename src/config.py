@@ -41,6 +41,16 @@ PLANT_CONFIG = {
     },
     "provided_energy": [10, 20, 30, 50],
     "min_edible_level": 2,  # grazing resets a plant to stage 1; seedlings can't be eaten
+    "winter_wither": 0.08,  # chance per second (scaled by how cold it is) to drop a growth stage
+}
+
+# Day/night and seasons
+ENVIRONMENT_CONFIG = {
+    "day_length": 120.0,      # seconds per full day
+    "year_length": 1440.0,    # seconds per year (four seasons)
+    "start_time": 40.0,       # morning of day 1, early spring
+    "season_strength": 0.7,   # plant growth swings this much above/below normal (and winter cold)
+    "night_darkness": 0.55,   # how dark the screen gets at midnight
 }
 
 # Creature configuration.
@@ -117,6 +127,9 @@ CREATURE_DEFAULTS = {
     # boldness) with a random change of about this fraction; founders vary too
     "mutation_rate": 0.06,
     "founder_variation": 0.1,
+    # Environment
+    "night_vision": 0.5,           # fraction of vision kept at midnight
+    "winter_hunger": 0.5,          # extra food drain in deep winter (x season_strength)
     # Fighting: hunters bite living prey; prey bites back (stronger in a herd)
     "attack_damage": 0,            # health a bite takes off prey
     "defense_damage": 0,           # health a caught prey's bite takes off the hunter
@@ -167,6 +180,7 @@ CARNIVORE_CONFIG = {
     "reproduction_food_cost": 80,
     "attack_damage": 45,
     "defense_damage": 10,
+    "night_vision": 0.9,           # night hunters
     "crowd_penalty": 0.4,
     "diet": ["herbivores", "smarties"],
     "nutrition": 90,

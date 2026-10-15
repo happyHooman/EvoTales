@@ -4,11 +4,13 @@ from collections import Counter
 
 import arcade
 import numpy as np
+from config import PLANT_CONFIG
 from entities.plant import Plant
 from entities.herbivore import Herbivore
 from entities.carnivore import Carnivore
 from entities.smartie import Smarty
 from engine import CreatureEngine
+from environment import Environment
 from sprite_manager import sprite_manager
 
 MAP_PATH = "assets/maps/uniform_map.json"
@@ -49,6 +51,8 @@ class EntityManager():
             scale = tex.properties.get("scale", 1.0)
             sizes.append((tex.width * scale, tex.height * scale))
         self.creatures = CreatureEngine(self, CREATURE_TYPES, sizes)
+        self.environment = Environment(CREATURE_TYPES)
+        self.creatures.store.env = self.environment
 
         self.stats: Counter[str] = Counter()
         self._extinct_for: dict[str, float] = {}
@@ -73,11 +77,23 @@ class EntityManager():
     def update(self, delta_time: float = 1/60):
         """Update plants (coarse tick), then all creatures."""
         delta_time = min(delta_time, MAX_STEP)
+        self.environment.step(delta_time)
 
         self._plant_time += delta_time
         if self._plant_time >= PLANT_TICK:
-            for plant in self.scene["plants"]:
-                plant.update(self._plant_time)
+            # Plants grow and seed faster in summer, barely in winter
+            plant_dt = self._plant_time * self.environment.plant_growth
+            plants = self.scene["plants"]
+            for plant in plants:
+                plant.update(plant_dt)
+            # Cold seasons wither plants back toward seedlings (less food in winter)
+            chill = max(0.0, 1.0 - self.environment.plant_growth)
+            wither = PLANT_CONFIG["winter_wither"] * chill * self._plant_time
+            if wither > 0 and len(plants):
+                for i in np.nonzero(np.random.random(len(plants)) < wither)[0]:
+                    plant = plants[int(i)]
+                    if plant.growth_level > 1:
+                        plant.set_growth_level(plant.growth_level - 1)
             self._plant_time = 0.0
             Plant.process_pending_seeds(self)
 

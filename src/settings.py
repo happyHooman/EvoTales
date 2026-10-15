@@ -9,7 +9,8 @@ import copy
 import json
 import os
 
-from config import CARNIVORE_CONFIG, CREATURE_DEFAULTS, HERBIVORE_CONFIG, PLANT_CONFIG, SMARTIE_CONFIG
+from config import (CARNIVORE_CONFIG, CREATURE_DEFAULTS, ENVIRONMENT_CONFIG, HERBIVORE_CONFIG, PLANT_CONFIG,
+                    SMARTIE_CONFIG)
 
 SETTINGS_PATH = "settings.json"
 RESTART_KEY = "_restart"
@@ -17,16 +18,18 @@ DISPLAY_KEY = "display"
 DISPLAY_DEFAULTS = {"show_fov": False, "show_energy": False}
 
 SECTIONS = {
+    "world": ENVIRONMENT_CONFIG,
     "plants": PLANT_CONFIG,
     "herbivores": HERBIVORE_CONFIG,
     "smarties": SMARTIE_CONFIG,
     "carnivores": CARNIVORE_CONFIG,
 }
-CREATURE_SECTIONS = [name for name in SECTIONS if name != "plants"]
+CREATURE_SECTIONS = [name for name in SECTIONS if name not in ("plants", "world")]
+WORLD_KEYS = ["day_length", "year_length", "season_strength", "night_darkness", "start_time"]
 
 PLANT_KEYS = [
     "initial_count", "min_spacing", "seed_min_distance", "seed_range",
-    "max_growth_timer", "reproduction_delay", "min_edible_level",
+    "max_growth_timer", "reproduction_delay", "min_edible_level", "winter_wither",
 ]
 CREATURE_KEYS = [
     "initial_count", "max_population",
@@ -39,7 +42,7 @@ CREATURE_KEYS = [
     "hunger_boldness", "boldness_interval",
     "reproduction_interval", "reproduction_food_threshold", "reproduction_health_ratio",
     "reproduction_food_cost",
-    "mutation_rate", "founder_variation",
+    "mutation_rate", "founder_variation", "night_vision", "winter_hunger",
     "attack_damage", "defense_damage", "attack_cooldown",
     "herd_radius", "herd_bonus", "crowd_penalty", "herd_cohesion",
     "nutrition", "corpse_duration", "reintroduce_after", "diet",
@@ -49,22 +52,23 @@ RESTART_ONLY_KEYS = {"initial_count", "min_spacing"}
 
 
 def editable_keys(section: str) -> list[str]:
-    return PLANT_KEYS if section == "plants" else CREATURE_KEYS
+    return {"plants": PLANT_KEYS, "world": WORLD_KEYS}.get(section, CREATURE_KEYS)
 
 
 def _effective(section: str) -> dict:
     cfg = SECTIONS[section]
-    return dict(cfg) if section == "plants" else {**CREATURE_DEFAULTS, **cfg}
+    return dict(cfg) if section in ("plants", "world") else {**CREATURE_DEFAULTS, **cfg}
 
 
 # Code defaults, captured before any overrides are applied
 DEFAULTS = {section: copy.deepcopy(_effective(section)) for section in SECTIONS}
 
 
-def current_values() -> dict:
-    """Editable values per section, from the code defaults plus saved overrides."""
+def current_values(data: dict | None = None) -> dict:
+    """Editable values per section: code defaults plus overrides (from settings.json,
+    or from `data`, e.g. a preset)."""
     values = {s: {k: copy.deepcopy(DEFAULTS[s][k]) for k in editable_keys(s)} for s in SECTIONS}
-    for section, overrides in load().items():
+    for section, overrides in (load() if data is None else data).items():
         if section in values:
             for key, value in overrides.items():
                 if key in values[section]:
@@ -81,18 +85,59 @@ def load() -> dict:
         return {}
 
 
-def save(values: dict, restart: bool = False) -> None:
-    """Store values that differ from the code defaults. Written atomically."""
-    previous = load()
+def _diff_from_defaults(values: dict) -> dict:
     data = {}
     for section, entries in values.items():
         diff = {k: v for k, v in entries.items() if v != DEFAULTS[section].get(k)}
         if diff:
             data[section] = diff
+    return data
+
+
+def save(values: dict, restart: bool = False) -> None:
+    """Store values that differ from the code defaults. Written atomically."""
+    previous = load()
+    data = _diff_from_defaults(values)
     data[RESTART_KEY] = previous.get(RESTART_KEY, 0) + (1 if restart else 0)
     if DISPLAY_KEY in previous:
         data[DISPLAY_KEY] = previous[DISPLAY_KEY]
     _write(data)
+
+
+# Presets: named scenarios, saved as the differences from the code defaults
+PRESETS_DIR = "presets"
+
+
+def list_presets() -> list[str]:
+    try:
+        return sorted(f[:-5] for f in os.listdir(PRESETS_DIR) if f.endswith(".json"))
+    except OSError:
+        return []
+
+
+def _preset_path(name: str) -> str:
+    safe = "".join(c for c in name if c.isalnum() or c in " -_").strip()
+    if not safe:
+        raise ValueError("Preset name needs letters or numbers")
+    return os.path.join(PRESETS_DIR, safe + ".json")
+
+
+def save_preset(name: str, values: dict) -> str:
+    os.makedirs(PRESETS_DIR, exist_ok=True)
+    path = _preset_path(name)
+    with open(path, "w") as f:
+        json.dump(_diff_from_defaults(values), f, indent=2)
+    return os.path.splitext(os.path.basename(path))[0]
+
+
+def load_preset(name: str) -> dict:
+    """The preset's full set of editable values (defaults where it doesn't say)."""
+    with open(_preset_path(name)) as f:
+        return current_values(json.load(f))
+
+
+def delete_preset(name: str) -> None:
+    os.remove(_preset_path(name))
 
 
 def display_options(data: dict | None = None) -> dict:

@@ -134,6 +134,13 @@ class SimulationWindow(arcade.Window):
         self.camera_controller.use()
         self.entity_manager.scene.draw()
         self.creature_renderer.draw(self.entity_manager.creatures.store)
+        # Season colour and night darkness over the world (bars and HUD stay readable)
+        r, g, b, a = self.entity_manager.environment.screen_tint()
+        if a > 0.005:
+            self.hud_camera.use()
+            arcade.draw_lrbt_rectangle_filled(0, self.width, 0, self.height,
+                                              (int(r * 255), int(g * 255), int(b * 255), int(a * 255)))
+            self.camera_controller.use()
         self.overlays.draw()
         self.hud_camera.use()
         self.hud_text.draw()
@@ -178,7 +185,8 @@ class SimulationWindow(arcade.Window):
         fps = self._frames / max(now - self._fps_clock, 1e-6)
         self._frames, self._fps_clock = 0, now
         paused = "  |  paused" if self.paused else ""
-        self.hud_text.text = f"{counts}  |  {fps:.0f} fps{paused}"
+        env = em.environment
+        self.hud_text.text = f"Day {env.day} {env.season} {env.clock}  |  {counts}  |  {fps:.0f} fps{paused}"
 
     def on_close(self):
         """Handle window close events for a graceful shutdown."""
