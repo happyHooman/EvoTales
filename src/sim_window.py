@@ -133,7 +133,7 @@ class SimulationWindow(arcade.Window):
         self.clear()
         self.camera_controller.use()
         self.entity_manager.scene.draw()
-        self.creature_renderer.draw(self.entity_manager.swarm)
+        self.creature_renderer.draw(self.entity_manager.creatures.store)
         self.overlays.draw()
         self.hud_camera.use()
         self.hud_text.draw()

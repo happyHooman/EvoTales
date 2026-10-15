@@ -8,7 +8,7 @@ from entities.plant import Plant
 from entities.herbivore import Herbivore
 from entities.carnivore import Carnivore
 from entities.smartie import Smarty
-from entities.swarm import Swarm
+from engine import CreatureEngine
 from sprite_manager import sprite_manager
 
 MAP_PATH = "assets/maps/uniform_map.json"
@@ -25,8 +25,8 @@ MAX_STEP = 1 / 20
 
 class EntityManager():
     """
-    The world: owns the map, the plants (arcade sprites) and the creatures (a numpy
-    Swarm), and offers the services they use: wall checks, plant arrays, stats.
+    The world: owns the map, the plants (arcade sprites) and the creatures (the numpy
+    CreatureEngine), and offers the services they use: wall checks, plant arrays, stats.
     """
     def __init__(self):
         self.tile_map = arcade.load_tilemap(MAP_PATH, scaling=TILE_SCALING)
@@ -48,7 +48,7 @@ class EntityManager():
             tex = sprite_manager.get_texture(c.texture_name)
             scale = tex.properties.get("scale", 1.0)
             sizes.append((tex.width * scale, tex.height * scale))
-        self.swarm = Swarm(self, CREATURE_TYPES, sizes)
+        self.creatures = CreatureEngine(self, CREATURE_TYPES, sizes)
 
         self.stats: Counter[str] = Counter()
         self._removals: list = []
@@ -58,7 +58,7 @@ class EntityManager():
 
     def refresh_food_chain(self) -> None:
         """Re-read species settings (diets, speeds, ...). Call again after settings change."""
-        self.swarm.refresh_params()
+        self.creatures.refresh_params()
         self.warnings = []
         speed = {c.layer_name: c.config["walk_speed"] * c.config["run_speed_multiplier"] for c in CREATURE_TYPES}
         for hunter in CREATURE_TYPES:
@@ -80,7 +80,7 @@ class EntityManager():
             self._plant_time = 0.0
             Plant.process_pending_seeds(self)
 
-        self.swarm.update(delta_time)
+        self.creatures.step(delta_time)
         self._flush_removals()
 
     def get_map_size(self):
@@ -93,9 +93,9 @@ class EntityManager():
             for _ in range(int(cfg["initial_count"])):
                 pos = self.random_free_position(cfg["bounds_padding"])
                 if pos is not None:
-                    row = self.swarm.spawn(creature_type.layer_name, *pos)
+                    row = self.creatures.spawn(creature_type.layer_name, *pos)
                     # Stagger the first births so the founders don't all reproduce at once
-                    self.swarm.reproduction_timer[row] *= random.uniform(0.3, 1.0)
+                    self.creatures.store.vitals.reproduction_timer[row] *= random.uniform(0.3, 1.0)
 
     # ------------------------------------------------------- world services
 
@@ -103,7 +103,7 @@ class EntityManager():
         """Living members of a layer (corpses don't count)."""
         if layer_name == "plants":
             return len(self.scene["plants"])
-        return self.swarm.population(layer_name)
+        return self.creatures.population(layer_name)
 
     def nearby(self, layer_name: str, x: float, y: float, radius: float) -> list:
         """Plants within radius of (x, y) (uses the plants' spatial hash)."""
@@ -114,7 +114,7 @@ class EntityManager():
         return [e for e in candidates
                 if not e.removed and (e.center_x - x) ** 2 + (e.center_y - y) ** 2 <= r2]
 
-    # Plants as arrays for the swarm. Plants are only ever added (grazing resets them to a
+    # Plants as arrays for the creature engine. Plants are only ever added (grazing resets them to a
     # seedling), so each keeps a fixed index and only new ones need appending.
     def plant_added(self, plant) -> None:
         plant.index = len(self._plants) + len(self._new_plants)

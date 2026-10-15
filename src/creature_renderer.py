@@ -1,5 +1,5 @@
 """
-Draws every creature straight from the Swarm's numpy arrays: one instanced
+Draws every creature straight from the creature store's numpy arrays: one instanced
 draw call per species, no sprite objects. Per frame the only work is slicing
 the arrays into an instance buffer.
 """
@@ -84,16 +84,17 @@ class CreatureRenderer:
             mode=ctx.TRIANGLE_STRIP,
         )
 
-    def draw(self, swarm):
+    def draw(self, store):
         ctx = arcade.get_window().ctx
         if not self._ready:
             self._setup(ctx)
-        n = swarm.count
+        n = store.count
         if n == 0:
             return
-        used = swarm.used[:n]
-        species = swarm.species[:n]
-        alive = swarm.alive[:n]
+        used = store.used[:n]
+        species = store.species[:n]
+        alive = store.alive[:n]
+        body = store.body
         ctx.enable(ctx.BLEND)
         for s, texture in enumerate(self.textures):
             rows = np.nonzero(used & (species == s))[0]
@@ -103,10 +104,10 @@ class CreatureRenderer:
             if count > self.capacity:
                 self._allocate(ctx, int(count * 1.5))
             data = np.empty((count, FLOATS_PER_INSTANCE), dtype="f4")
-            data[:, 0] = swarm.x[rows]
-            data[:, 1] = swarm.y[rows]
+            data[:, 0] = body.x[rows]
+            data[:, 1] = body.y[rows]
             # Sprite art faces down; rotate so it faces the heading
-            data[:, 2] = swarm.heading[rows] + SPRITE_ANGLE_OFFSET
+            data[:, 2] = body.heading[rows] + SPRITE_ANGLE_OFFSET
             data[:, 3:7] = 1.0
             dead = ~alive[rows]
             if dead.any():

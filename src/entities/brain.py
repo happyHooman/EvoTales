@@ -1,11 +1,11 @@
 """
-Brains decide what a creature does; the swarm's body logic carries it out.
+Brains decide what a creature does; the creature engine carries it out.
 
-Every species runs on the instinct rules implemented (vectorized) in swarm.py.
+Every species runs on the instinct rules in engine/behaviour.py (vectorized).
 Only smarties may be given another Brain (for example a small language model
 that reads the Observation and answers with a tool call):
 
-    swarm.set_brain(row, MyBrain())
+    world.creatures.set_brain(row, MyBrain())
     # each decision: Observation -> brain.decide() -> Intent
     #   Intent.action is one of "wander", "relax", "eat", "flee", "reproduce";
     #   Intent.target is a percept's entity handle, e.g. ("plant", 12) or ("creature", 40)

@@ -1,6 +1,6 @@
 """
-Species descriptors. Creatures themselves are rows in the Swarm's numpy arrays
-(see swarm.py); a species class only carries its layer name, sprite and config.
+Species descriptors. Creatures themselves are rows in numpy arrays
+(see engine/); a species class only carries its layer name, sprite and config.
 """
 from config import CREATURE_DEFAULTS
 

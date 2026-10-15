@@ -103,16 +103,15 @@ class Overlays:
 
     def _gather(self) -> np.ndarray:
         """Instance rows for every living creature, built with array operations."""
-        swarm = self._world.swarm
-        n = swarm.count
-        rows = np.nonzero(swarm.alive[:n])[0]
+        store = self._world.creatures.store
+        rows = store.living_rows()
         if not len(rows):
             return np.zeros((0, FLOATS_PER_INSTANCE), "f4")
-        x, y, sp = swarm.x[rows], swarm.y[rows], swarm.species[rows]
+        x, y, sp = store.body.x[rows], store.body.y[rows], store.species[rows]
         parts = []
         if self.show_fov:
             ring = np.empty((len(rows), FLOATS_PER_INSTANCE), "f4")
-            d = 2 * swarm.params["vision_range"][sp]
+            d = 2 * store.params["vision_range"][sp]
             colors = np.array([tuple(c / 255 for c in FOV_COLORS.get(layer, (255, 255, 255))) + (1.0,)
                                for layer in self._layers], "f4")
             ring[:, 0], ring[:, 1], ring[:, 2], ring[:, 3] = x, y, d, d
@@ -120,8 +119,8 @@ class Overlays:
             ring[:, 8] = RING
             parts.append(ring)
         if self.show_energy:
-            ratio = np.clip(swarm.energy[rows] / swarm.params["max_energy"][sp], 0, 1)
-            by = y + swarm.radius[rows] + 6
+            ratio = np.clip(store.vitals.energy[rows] / store.params["max_energy"][sp], 0, 1)
+            by = y + store.radius[rows] + 6
             bg = np.empty((len(rows), FLOATS_PER_INSTANCE), "f4")
             bg[:, 0], bg[:, 1], bg[:, 2], bg[:, 3] = x, by, BAR_WIDTH, BAR_HEIGHT
             bg[:, 4:8] = BAR_BG
