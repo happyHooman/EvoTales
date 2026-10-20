@@ -1,0 +1,31 @@
+{
+  "map": {
+    "seed": 902079
+  },
+  "world": {
+    "season_strength": 0.61
+  },
+  "plants": {
+    "reproduction_delay": 29.46,
+    "regrow_time": 15.17
+  },
+  "herbivores": {
+    "max_population": 94,
+    "reproduction_interval": 15.89,
+    "attack": 6.9,
+    "crowd_limit": 5,
+    "herd_cohesion": 0.31
+  },
+  "smarties": {
+    "max_population": 101,
+    "reproduction_interval": 49.5,
+    "attack": 19.96
+  },
+  "carnivores": {
+    "max_population": 59,
+    "max_stamina": 25.45,
+    "sprint_range": 127.26,
+    "reproduction_interval": 59.67,
+    "attack": 42.58
+  }
+}

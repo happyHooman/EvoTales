@@ -109,12 +109,13 @@ def score(result):
     escapes = max(chases - kills, 0)
     fights = count("fighting back", "fought off", "fought for space", "drove off")
     calls = count("alarm calls")
-    action = (kills + 0.5 * escapes + fights + 0.1 * calls) / max(mean_pop, 1) / max(minutes, 1)
+    # Fights for space are capped: a few are drama, thousands just mean a crush
+    action = (kills + 0.5 * escapes + min(fights, 20 * minutes) + 0.1 * calls) / max(mean_pop, 1) / max(minutes, 1)
     crowd_ok = 1.0 if 60 <= mean_pop <= 600 else 0.5
     parts = {
         "coexistence": alive_end / 3 - 0.15 * rescues,
         "swings": min(swings, 0.8) / 0.8,
-        "action": min(action / 0.5, 1.0),
+        "action": min(action / 2.0, 1.0),
         "evolution": min(result["drift"] / 0.15, 1.0),
         "crowd": crowd_ok,
     }
@@ -149,6 +150,7 @@ def main():
         print(f"{r['score']:5.2f} {r['name']:11} {r['parts']} {r['facts']} end={ends}")
     with open(args.report, "w") as f:
         json.dump(ranked, f, indent=1)
+    import _headless  # noqa: F401  (puts src/ on the path)
     import settings
     for k, r in enumerate(ranked[:args.save_top]):
         values = settings.current_values(r["overrides"])
