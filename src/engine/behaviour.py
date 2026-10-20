@@ -147,7 +147,9 @@ class BehaviourSystem:
         dx = s.body.x[cols][None, :] - x[:, None]
         dy = s.body.y[cols][None, :] - y[:, None]
         d2 = dx * dx + dy * dy
-        in_sight = (d2 <= vision2) & s.used[cols][None, :] & (cols[None, :] != rows[:, None])
+        # Others are spotted at my vision x their visibility (forest cover hides them)
+        seen_at = vision[:, None] * s.p("visibility", cols)[None, :]
+        in_sight = (d2 <= seen_at * seen_at) & s.used[cols][None, :] & (cols[None, :] != rows[:, None])
         others_sp = s.species[cols]
         others_target = m.target_creature[cols]
 
@@ -258,6 +260,7 @@ class BehaviourSystem:
                     action[j] = WANDER if act == "reproduce" else act
                     brain_runs[j] = run
 
+        previous_prey = m.target_creature[rows].copy()
         m.action[rows] = action
         m.target_creature[rows] = np.where(action == EAT, target_c, -1)
         m.target_plant[rows] = np.where(action == EAT, target_p, -1)
@@ -278,6 +281,10 @@ class BehaviourSystem:
                 s.body.speed[t] > s.p("walk_speed", t) * s.p("relax_speed_ratio", t) * 1.01) & (
                 gap2 <= s.p("sprint_range", hr) ** 2)
         m.running[rows] = ((action == EAT) & prey_moving) | ((action == FLEE) & (any_alarming | alarmed))
+        # A chase starts when a hunter picks a new living prey (for the stats)
+        new_chase = (action == EAT) & (tc >= 0) & (tc != previous_prey)
+        if new_chase.any():
+            self.world.stats["chases started"] += int((new_chase & s.alive[np.maximum(tc, 0)]).sum())
         for j, run in brain_runs.items():
             m.running[rows[j]] = run and action[j] in (EAT, FLEE)
 

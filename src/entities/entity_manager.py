@@ -4,7 +4,7 @@ from collections import Counter
 
 import arcade
 import numpy as np
-from config import BIOME_CONFIG, MAP_CONFIG, PLANT_CONFIG
+from config import BIOME_CONFIG, MAP_CONFIG, PLANT_CONFIG, SPECIES_BIOME_CONFIG
 from entities.plant import Plant
 from entities.herbivore import Herbivore
 from entities.carnivore import Carnivore
@@ -20,7 +20,7 @@ TILE_SCALING = 1.0
 # shoreline) is treated as water. Tiled gids, as stored in the map json.
 WALKABLE_GROUND_GIDS = {51}
 CREATURE_TYPES = (Herbivore, Smarty, Carnivore)
-BIOME_EFFECTS = ("plants", "speed", "vision", "stamina", "hunger")
+
 # Plants only need coarse timing (growth takes seconds), so tick them a few times a second
 PLANT_TICK = 0.25
 # Cap the behaviour step so a slow frame doesn't teleport creatures through walls
@@ -161,13 +161,18 @@ class EntityManager():
         self.tiles = np.where(self._blocked, mapgen.WATER, mapgen.GRASSLAND).astype(np.int8)
 
     def refresh_biomes(self) -> None:
-        """Biome effect tables (effect -> value per biome id) from BIOME_CONFIG."""
-        self.biome_effects = {}
-        for effect in BIOME_EFFECTS:
-            table = np.ones(len(mapgen.BIOMES))
-            for b, name in enumerate(mapgen.BIOMES):
-                table[b] = BIOME_CONFIG.get(f"{name}_{effect}", 1.0)
-            self.biome_effects[effect] = table
+        """Plant growth per biome, and per creature parameter a (species x biome)
+        table of multipliers from SPECIES_BIOME_CONFIG (only parameters it mentions)."""
+        self.plant_growth_by_biome = np.array(
+            [BIOME_CONFIG.get(f"{name}_plants", 1.0) for name in mapgen.BIOMES])
+        names = [c.layer_name for c in CREATURE_TYPES]
+        tables = {}
+        for s, species in enumerate(names):
+            for b, biome in enumerate(mapgen.BIOMES):
+                for key, mult in SPECIES_BIOME_CONFIG.get(species, {}).get(biome, {}).items():
+                    table = tables.setdefault(key, np.ones((len(names), len(mapgen.BIOMES))))
+                    table[s, b] = mult
+        self.species_biome_tables = tables
 
     def biome_at(self, xs, ys):
         """Biome id under each point (water outside the map)."""
@@ -180,7 +185,7 @@ class EntityManager():
 
     def plant_factor(self, x, y) -> float:
         """How well plants grow at (x, y): growth speed and the chance a seed takes."""
-        return float(self.biome_effects["plants"][self.biome_at(x, y)])
+        return float(self.plant_growth_by_biome[self.biome_at(x, y)])
 
     def spawn_initial_population(self):
         Plant.spawn_initial(self)

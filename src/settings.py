@@ -10,7 +10,8 @@ import json
 import os
 
 from config import (BIOME_CONFIG, CARNIVORE_CONFIG, CREATURE_DEFAULTS, ENVIRONMENT_CONFIG, HERBIVORE_CONFIG,
-                    MAP_CONFIG, PLANT_CONFIG, SMARTIE_CONFIG)
+                    MAP_CONFIG, PLANT_CONFIG, SMARTIE_CONFIG, SPECIES_BIOME_CONFIG)
+from world.mapgen import BIOMES, BLOCKED_BIOMES
 
 SETTINGS_PATH = "settings.json"
 RESTART_KEY = "_restart"
@@ -25,8 +26,9 @@ SECTIONS = {
     "herbivores": HERBIVORE_CONFIG,
     "smarties": SMARTIE_CONFIG,
     "carnivores": CARNIVORE_CONFIG,
+    "species_biomes": SPECIES_BIOME_CONFIG,  # flattened to "species.biome.param" keys below
 }
-NON_CREATURE_SECTIONS = ("map", "biomes", "world", "plants")
+NON_CREATURE_SECTIONS = ("map", "biomes", "world", "plants", "species_biomes")
 CREATURE_SECTIONS = [name for name in SECTIONS if name not in NON_CREATURE_SECTIONS]
 MAP_KEYS = ["seed", "width_tiles", "height_tiles", "tile_size", "terrain_scale", "climate_scale",
             "water_level", "beach_width", "temperature_shift", "moisture_shift", "latitude_strength"]
@@ -35,7 +37,7 @@ WORLD_KEYS = ["day_length", "year_length", "season_strength", "night_darkness", 
 
 PLANT_KEYS = [
     "initial_count", "min_spacing", "seed_min_distance", "seed_range",
-    "max_growth_timer", "reproduction_delay", "min_edible_level", "winter_wither",
+    "max_growth_timer", "reproduction_delay", "min_edible_level", "regrow_time", "winter_wither",
 ]
 CREATURE_KEYS = [
     "initial_count", "max_population",
@@ -56,17 +58,48 @@ CREATURE_KEYS = [
     "call_range", "alarm_duration",
     "nutrition", "corpse_duration", "reintroduce_after", "diet",
 ]
+CREATURE_KEYS.insert(CREATURE_KEYS.index("night_vision"), "visibility")
+# Creature parameters a biome can scale per species (everything numeric except bookkeeping)
+BIOME_PARAM_KEYS = [k for k in CREATURE_KEYS if k not in (
+    "initial_count", "max_population", "mutation_rate", "founder_variation", "reintroduce_after", "diet")]
+LAND_BIOMES = [b for i, b in enumerate(BIOMES) if i not in BLOCKED_BIOMES]
+SPECIES_BIOME_KEYS = [f"{sp}.{b}.{k}" for sp in ("herbivores", "smarties", "carnivores")
+                      for b in LAND_BIOMES for k in BIOME_PARAM_KEYS]
+
+
+def _flatten_species_biomes(nested: dict) -> dict:
+    flat = {key: 1.0 for key in SPECIES_BIOME_KEYS}
+    for sp, biomes in nested.items():
+        for b, params in biomes.items():
+            for k, v in params.items():
+                flat[f"{sp}.{b}.{k}"] = v
+    return flat
+
+
+def _apply_species_biomes(flat: dict) -> None:
+    """Rebuild the nested SPECIES_BIOME_CONFIG in place (keeping only multipliers != 1)."""
+    nested = {}
+    for key, value in flat.items():
+        if value != 1.0:
+            sp, b, k = key.split(".")
+            nested.setdefault(sp, {}).setdefault(b, {})[k] = value
+    SPECIES_BIOME_CONFIG.clear()
+    SPECIES_BIOME_CONFIG.update(nested)
+
+
 # Only take effect when the world is rebuilt
 RESTART_ONLY_KEYS = {"initial_count", "min_spacing"}
 
 
 def editable_keys(section: str) -> list[str]:
-    return {"plants": PLANT_KEYS, "world": WORLD_KEYS, "map": MAP_KEYS, "biomes": BIOME_KEYS}.get(
-        section, CREATURE_KEYS)
+    return {"plants": PLANT_KEYS, "world": WORLD_KEYS, "map": MAP_KEYS, "biomes": BIOME_KEYS,
+            "species_biomes": SPECIES_BIOME_KEYS}.get(section, CREATURE_KEYS)
 
 
 def _effective(section: str) -> dict:
     cfg = SECTIONS[section]
+    if section == "species_biomes":
+        return _flatten_species_biomes(cfg)
     return dict(cfg) if section in NON_CREATURE_SECTIONS else {**CREATURE_DEFAULTS, **cfg}
 
 
@@ -174,6 +207,9 @@ def apply(data: dict) -> None:
     """Apply saved overrides to the live config dicts (values not overridden go back to defaults)."""
     for section, cfg in SECTIONS.items():
         overrides = data.get(section, {})
+        if section == "species_biomes":
+            _apply_species_biomes({k: overrides.get(k, DEFAULTS[section][k]) for k in SPECIES_BIOME_KEYS})
+            continue
         for key in editable_keys(section):
             value = overrides.get(key, DEFAULTS[section][key])
             cfg[key] = copy.deepcopy(value)

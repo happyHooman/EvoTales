@@ -105,6 +105,7 @@ class Plant(Entity):
             raise ValueError(f"Invalid growth level: {growth_level}. Must be between 1 and {PLANT_CONFIG['max_growth_level']}")
 
         self.config = PLANT_CONFIG
+        self.regrow_timer = 0.0
         # Randomize so plants planted together don't all grow on the same frame
         self.growth_timer = self.config["max_growth_timer"] * random.uniform(0.8, 1.2)
         self.reproduction_timer = self.config["reproduction_delay"] * random.uniform(0.8, 1.2)
@@ -144,8 +145,9 @@ class Plant(Entity):
 
     @property
     def edible(self) -> bool:
-        """Seedlings are left alone so grazed areas can regrow."""
-        return self.growth_level >= self.config["min_edible_level"]
+        """Seedlings, and plants grazed less than regrow_time ago, are left alone so
+        grazed areas can recover (otherwise one plant feeds a crowd forever)."""
+        return self.growth_level >= self.config["min_edible_level"] and self.regrow_timer <= 0
 
     def be_eaten(self) -> float:
         """Graze the plant back to a seedling and return the energy it provides."""
@@ -154,10 +156,15 @@ class Plant(Entity):
         self.growth_level = 1
         self.texture = self.growth_textures[0]
         self.growth_timer = self.config["max_growth_timer"] * random.uniform(0.8, 1.2)
+        self.regrow_timer = self.config["regrow_time"] * random.uniform(0.8, 1.2)
         self.world.plant_changed(self)
         return energy
 
     def update(self, delta_time: float = 1/60):
+        if self.regrow_timer > 0:
+            self.regrow_timer -= delta_time
+            if self.regrow_timer <= 0:
+                self.world.plant_changed(self)  # edible again
         if self.full_grown:
             self.reproduce(delta_time)
         else:

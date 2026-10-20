@@ -41,6 +41,7 @@ PLANT_CONFIG = {
     },
     "provided_energy": [10, 20, 30, 50],
     "min_edible_level": 2,  # grazing resets a plant to stage 1; seedlings can't be eaten
+    "regrow_time": 10.0,    # seconds after grazing before a plant can be eaten again (any stage)
     "winter_wither": 0.08,  # chance per second (scaled by how cold it is) to drop a growth stage
 }
 
@@ -61,19 +62,40 @@ MAP_CONFIG = {
     "latitude_strength": 0.4,    # how much colder the top of the map is than the bottom
 }
 
-# What each biome does to creatures and plants (multipliers; 1 = no effect).
-#   plants   - plant growth speed, and the chance a seed takes root there
-#   speed    - movement speed
-#   vision   - how far creatures see (forests hide; open ground shows)
-#   stamina  - stamina cost of living and moving (heat, mud)
-#   hunger   - food drain (cold)
+# How well plants grow in each biome: growth speed, and the chance a seed takes root
 BIOME_CONFIG = {
-    "grassland_plants": 1.0, "grassland_speed": 1.0, "grassland_vision": 1.0, "grassland_stamina": 1.0, "grassland_hunger": 1.0,
-    "forest_plants": 1.3, "forest_speed": 0.85, "forest_vision": 0.55, "forest_stamina": 1.1, "forest_hunger": 1.0,
-    "desert_plants": 0.15, "desert_speed": 0.9, "desert_vision": 1.25, "desert_stamina": 1.35, "desert_hunger": 1.15,
-    "swamp_plants": 1.5, "swamp_speed": 0.6, "swamp_vision": 0.8, "swamp_stamina": 1.4, "swamp_hunger": 1.0,
-    "tundra_plants": 0.35, "tundra_speed": 0.9, "tundra_vision": 1.1, "tundra_stamina": 1.1, "tundra_hunger": 1.4,
-    "beach_plants": 0.2, "beach_speed": 1.0, "beach_vision": 1.2, "beach_stamina": 1.0, "beach_hunger": 1.0,
+    "grassland_plants": 1.0, "forest_plants": 1.3, "desert_plants": 0.15,
+    "swamp_plants": 1.5, "tundra_plants": 0.35, "beach_plants": 0.2,
+}
+
+# Per species, per biome: multipliers on ANY creature parameter (missing = 1.0).
+# This is what gives each species a home ground and places it struggles.
+# "visibility" is how far away others can spot it (forests hide; open sand shows).
+SPECIES_BIOME_CONFIG = {
+    "herbivores": {   # open-country grazers
+        "grassland": {"walk_speed": 1.1, "digest_rate": 1.2},
+        "forest": {"walk_speed": 0.85, "vision_range": 0.6, "visibility": 0.7},
+        "desert": {"alive_stamina_cost": 1.4, "food_drain": 1.3, "visibility": 1.3},
+        "swamp": {"walk_speed": 0.6, "walk_stamina_cost": 1.5},
+        "tundra": {"food_drain": 1.5, "walk_speed": 0.9},
+        "beach": {"vision_range": 1.2, "visibility": 1.3},
+    },
+    "smarties": {     # forest dwellers, at home in cover and wetlands
+        "grassland": {"visibility": 1.1},
+        "forest": {"vision_range": 0.9, "visibility": 0.5, "digest_rate": 1.3, "heal_rate": 1.3},
+        "desert": {"alive_stamina_cost": 1.6, "food_drain": 1.5},
+        "swamp": {"walk_speed": 0.9, "visibility": 0.6},
+        "tundra": {"food_drain": 1.7, "walk_speed": 0.85},
+        "beach": {"visibility": 1.3},
+    },
+    "carnivores": {   # stalkers: ambush from cover, tireless in the cold, lost in the mud
+        "grassland": {"vision_range": 1.15},
+        "forest": {"visibility": 0.5, "sprint_range": 0.8, "vision_range": 0.75},
+        "desert": {"alive_stamina_cost": 1.5, "walk_stamina_cost": 1.3},
+        "swamp": {"walk_speed": 0.6, "walk_stamina_cost": 1.6},
+        "tundra": {"food_drain": 1.0, "walk_speed": 1.05, "max_stamina": 1.2},
+        "beach": {"visibility": 1.4},
+    },
 }
 
 # Day/night and seasons
@@ -161,6 +183,7 @@ CREATURE_DEFAULTS = {
     # fraction; founders vary too
     "mutation_rate": 0.06,
     "founder_variation": 0.1,
+    "visibility": 1.0,             # how far away others can spot it (x their vision)
     # Environment
     "night_vision": 0.5,           # fraction of vision kept at midnight
     "winter_hunger": 0.5,          # extra food drain in deep winter (x season_strength)

@@ -57,6 +57,8 @@ LABELS = {
     "mutation_rate": "Mutation at birth",
     "reintroduce_after": "Reintroduce if extinct after (s)",
     "winter_wither": "Winter wither chance (/s)",
+    "regrow_time": "Regrow time after grazing (s)",
+    "visibility": "Visibility (how far others spot it)",
     "night_vision": "Night vision (fraction kept)",
     "winter_hunger": "Extra winter hunger",
     "day_length": "Day length (s)",
@@ -129,7 +131,7 @@ STEPS = {
     "hunger_boldness": 0.05, "boldness_interval": 0.5,
     "nutrition": 5, "corpse_duration": 1.0, "mutation_rate": 0.01, "founder_variation": 0.01,
     "reintroduce_after": 10.0,
-    "night_vision": 0.05, "winter_hunger": 0.05, "winter_wither": 0.01,
+    "night_vision": 0.05, "winter_hunger": 0.05, "visibility": 0.05, "winter_wither": 0.01, "regrow_time": 1.0,
     "day_length": 10.0, "year_length": 60.0, "season_strength": 0.05, "night_darkness": 0.05, "start_time": 10.0,
     "attack": 1, "rival_bite": 0.05, "personal_space": 2, "crowd_limit": 1, "crowd_damage": 0.05,
     "aggression": 0.05, "attack_cooldown": 0.1,
@@ -205,7 +207,9 @@ class SettingsWindow(QWidget):
 
         self.tabs = QTabWidget()
         for section in settings.SECTIONS:
-            self.tabs.addTab(self._build_tab(section), section.capitalize())
+            title = "Biome effects" if section == "species_biomes" else ("Plant growth by biome" if section == "biomes"
+                                                                       else section.capitalize())
+            self.tabs.addTab(self._build_tab(section), title)
         self.tabs.setCurrentIndex(list(settings.SECTIONS).index("herbivores"))
         layout.addWidget(self.tabs, stretch=1)
 
@@ -245,7 +249,72 @@ class SettingsWindow(QWidget):
 
     # ------------------------------------------------------------------ layout
 
+    def _build_species_biome_tab(self):
+        """One form for any (species, biome) pair: a multiplier for every creature
+        parameter while that species stands on that biome."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        pick = QHBoxLayout()
+        self.sb_species, self.sb_biome = QComboBox(), QComboBox()
+        self.sb_species.addItems(settings.CREATURE_SECTIONS)
+        self.sb_biome.addItems(settings.LAND_BIOMES)
+        for label, box in (("Species", self.sb_species), ("in biome", self.sb_biome)):
+            pick.addWidget(QLabel(label))
+            pick.addWidget(box)
+        pick.addStretch()
+        layout.addLayout(pick)
+        note = QLabel("Multipliers on that species' own values while it stands in that biome "
+                      "(1 = no effect). Visibility: how far away others can spot it.")
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(16)
+        keys = settings.BIOME_PARAM_KEYS
+        half = (len(keys) + 1) // 2
+        self.sb_inputs = {}
+        for i, key in enumerate(keys):
+            col, row = divmod(i, half)
+            spin = QDoubleSpinBox()
+            spin.setLocale(NUMBER_LOCALE)
+            spin.setDecimals(2)
+            spin.setRange(0.0, 10.0)
+            spin.setSingleStep(0.05)
+            spin.setMinimumWidth(90)
+            spin.valueChanged.connect(lambda v, k=key: self._set_species_biome(k, round(v, 3)))
+            grid.addWidget(QLabel(_label(key)), row, col * 2)
+            grid.addWidget(spin, row, col * 2 + 1)
+            self.sb_inputs[key] = spin
+        layout.addLayout(grid)
+        layout.addStretch()
+        self.sb_species.currentTextChanged.connect(lambda _: self._show_species_biome())
+        self.sb_biome.currentTextChanged.connect(lambda _: self._show_species_biome())
+        self._show_species_biome()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(page)
+        return scroll
+
+    def _species_biome_key(self, param):
+        return f"{self.sb_species.currentText()}.{self.sb_biome.currentText()}.{param}"
+
+    def _show_species_biome(self):
+        self._loading = True
+        for key, spin in self.sb_inputs.items():
+            value = self.values["species_biomes"][self._species_biome_key(key)]
+            spin.setValue(value)
+            spin.setStyleSheet("" if value == 1.0 else "font-weight: bold;")
+        self._loading = False
+
+    def _set_species_biome(self, param, value):
+        if self._loading:
+            return
+        self.values["species_biomes"][self._species_biome_key(param)] = value
+        self.sb_inputs[param].setStyleSheet("" if value == 1.0 else "font-weight: bold;")
+        self._mark_pending()
+
     def _build_tab(self, section):
+        if section == "species_biomes":
+            return self._build_species_biome_tab()
         page = QWidget()
         grid = QGridLayout(page)
         grid.setHorizontalSpacing(16)
@@ -348,6 +417,8 @@ class SettingsWindow(QWidget):
             if s == section:
                 box.setChecked(food in self.values[section]["diet"])
         self._loading = False
+        if section == "species_biomes":
+            self._show_species_biome()
         self._mark_pending(f"{section.capitalize()}: code defaults restored, not applied yet.")
 
     def random_seed(self):
@@ -404,6 +475,7 @@ class SettingsWindow(QWidget):
         for (section, food), box in self.diet_boxes.items():
             box.setChecked(food in self.values[section]["diet"])
         self._loading = False
+        self._show_species_biome()
 
     def apply(self, restart):
         # A number still being typed counts (buttons on macOS don't take focus, so the

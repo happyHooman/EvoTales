@@ -32,7 +32,7 @@ PARAM_KEYS = [
     "reproduction_interval", "reproduction_food_threshold", "reproduction_health_ratio",
     "reproduction_food_cost",
     "nutrition", "corpse_duration", "max_population",
-    "mutation_rate", "founder_variation", "night_vision", "winter_hunger",
+    "mutation_rate", "founder_variation", "night_vision", "winter_hunger", "visibility",
     "attack", "rival_bite", "attack_cooldown",
     "personal_space", "crowd_limit", "crowd_damage", "aggression",
     "herd_radius", "herd_bonus", "crowd_penalty", "herd_cohesion",
@@ -69,9 +69,7 @@ RATIO_LIMITS = {"hungry_ratio": (0.05, 0.95), "full_ratio": (0.1, 1.0), "relaxed
                 "hunger_boldness": (0.0, 1.0), "run_stamina_multiplier": (1.0, None)}
 # Parameters the environment scales per species (day/night, seasons): param -> Environment attribute
 ENV_EFFECTS = {"vision_range": "vision", "food_drain": "food_drain"}
-# Parameters the ground under each creature scales: param -> biome effect (see BIOME_CONFIG)
-BIOME_PARAM_EFFECTS = {"walk_speed": "speed", "vision_range": "vision", "alive_stamina_cost": "stamina",
-                       "walk_stamina_cost": "stamina", "food_drain": "hunger"}
+
 
 # Action codes (store.mind.action)
 WANDER, RELAX, EAT, FLEE = 0, 1, 2, 3
@@ -161,9 +159,10 @@ class CreatureStore:
             value = np.clip(value, *RATIO_LIMITS[key])
         if self.env is not None and key in ENV_EFFECTS:
             value = value * getattr(self.env, ENV_EFFECTS[key])[sp]
-        if key in BIOME_PARAM_EFFECTS:
+        table = self.world.species_biome_tables.get(key)
+        if table is not None:  # this species' advantage / handicap on the ground it stands on
             biome = self.core.biome[rows]
-            value = value * np.where(biome >= 0, self.world.biome_effects[BIOME_PARAM_EFFECTS[key]][biome], 1.0)
+            value = value * np.where(biome >= 0, table[sp, np.maximum(biome, 0)], 1.0)
         return value
 
     def attack_value(self, rows):
