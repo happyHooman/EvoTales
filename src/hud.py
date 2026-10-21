@@ -12,8 +12,8 @@ from engine import ACTION_NAMES
 from engine.store import GENES
 from world.mapgen import BIOMES
 
-SAMPLE_EVERY = 1.0   # seconds between graph samples
-HISTORY = 300        # samples kept (5 minutes)
+SAMPLE_EVERY = 4.0   # simulated seconds between graph samples
+HISTORY = 450        # samples kept (30 simulated minutes, long enough to see population waves)
 GRAPH_W, GRAPH_H = 320, 130
 SERIES_COLORS = {
     "plants": (60, 140, 60),

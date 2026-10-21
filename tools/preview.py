@@ -2,6 +2,7 @@
 Render a few frames of a preset headlessly (hidden window) to see what it looks like.
 
     .venv/bin/python tools/preview.py "Scenario - Predator cycles" --minutes 8 --out preview.png
+    .venv/bin/python tools/preview.py defaults --minutes 8 --out preview.png   (the code defaults)
 """
 import argparse
 import json
@@ -20,9 +21,13 @@ def main():
     ap.add_argument("preset")
     ap.add_argument("--minutes", type=float, default=8)
     ap.add_argument("--out", default="preview.png")
+    ap.add_argument("--whole-map", action="store_true", help="zoom out to show the whole map")
     args = ap.parse_args()
-    with open(settings._preset_path(args.preset)) as f:
-        overrides = json.load(f)
+    if args.preset == "defaults":
+        overrides = {}
+    else:
+        with open(settings._preset_path(args.preset)) as f:
+            overrides = json.load(f)
     # The window re-reads settings on setup: make it see this preset, not settings.json
     settings.load = lambda: overrides
     settings.apply(overrides)
@@ -32,6 +37,10 @@ def main():
     w.set_visible(False)
     w.settings_watcher.poll = lambda: (None, False)
     w.setup()
+    if args.whole_map:
+        cc = w.camera_controller
+        cc.camera.zoom = cc.min_zoom
+        cc.center_camera()
     shots = []
     total = int(args.minutes * 3600)
     for i in range(total):

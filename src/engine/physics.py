@@ -3,7 +3,10 @@ PhysicsEngine: the only writer of store.body (x, y, vx, vy, heading, speed).
 
 Each step it reads store.command (the heading and speed behaviour asked for) and,
 for every living creature at once:
-1. turns the heading toward the commanded heading, at most turn_rate * dt,
+1. turns the heading toward the commanded heading, at most turn_rate * dt at walking
+   speed: slower creatures turn faster (up to TURN_BOOST x when nearly still), running
+   ones slower (a fixed sideways grip: turn rate x speed stays the same). A creature
+   facing away from where it wants to go slows down to turn, then speeds up again,
 2. sets the speed and velocity,
 3. moves, sliding along walls/water instead of entering them,
 4. pushes apart bodies that overlap (bodies are solid discs).
@@ -15,6 +18,8 @@ import math
 import numpy as np
 
 TWO_PI = 2 * math.pi
+TURN_BOOST = 4.0       # how much faster than turn_rate a creature turns when (nearly) standing still
+MIN_TURN_SPEED = 0.25  # fraction of its speed a creature keeps while turning around
 
 
 def wrap_angle(a):
@@ -37,9 +42,13 @@ class PhysicsEngine:
     def _turn_and_accelerate(self, rows, dt):
         s, body, cmd = self.store, self.store.body, self.store.command
         diff = wrap_angle(cmd.heading[rows] - body.heading[rows])
-        max_turn = s.p("turn_rate", rows) * dt
+        # Slow down into a sharp turn (full speed only once roughly facing the goal)
+        speed = cmd.speed[rows] * np.clip(np.cos(diff), MIN_TURN_SPEED, 1.0)
+        walk = s.p("walk_speed", rows)
+        # turn_rate holds at walking speed; turn rate x speed is the grip, so the slower, the sharper
+        agility = np.minimum(walk / np.maximum(speed, walk / TURN_BOOST), TURN_BOOST)
+        max_turn = s.p("turn_rate", rows) * agility * dt
         heading = (body.heading[rows] + np.clip(diff, -max_turn, max_turn)) % TWO_PI
-        speed = cmd.speed[rows]
         body.heading[rows] = heading
         body.speed[rows] = speed
         body.vx[rows] = speed * np.cos(heading)

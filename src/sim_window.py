@@ -10,7 +10,7 @@ import arcade
 from arcade.gui import UIAnchorLayout, UIBoxLayout, UIFlatButton, UIManager
 
 import settings
-from config import CAMERA_SETTINGS, SCREEN_TITLE, WINDOW_HEIGHT, WINDOW_WIDTH
+from config import CAMERA_SETTINGS, ENVIRONMENT_CONFIG, SCREEN_TITLE, WINDOW_HEIGHT, WINDOW_WIDTH
 from entities.entity_manager import EntityManager
 from input_controller import CameraMode, InputController
 from overlays import Overlays
@@ -205,8 +205,10 @@ class SimulationWindow(arcade.Window):
             self._settings_timer = SETTINGS_POLL
             self._poll_settings()
         if not self.paused:
-            self.entity_manager.update(delta_time)
-            self.graph.update(self.entity_manager, delta_time)
+            # Simulation speed slows the whole world alike (movement, hunger, breeding, plants, days)
+            sim_dt = delta_time * ENVIRONMENT_CONFIG["sim_speed"]
+            self.entity_manager.update(sim_dt)
+            self.graph.update(self.entity_manager, sim_dt)
         follow = self.inspector.update(self.entity_manager.creatures.store)
         if follow is not None:
             self.camera_controller.clamp_position(*follow)

@@ -110,7 +110,7 @@ class CreatureStore:
                             think_timer=F, wander_timer=F, detour_timer=F, attack_timer=F,
                             yield_timer=F, banned_plant=I, banned_creature=I,
                             alarm_timer=F, alarm_heading=F, call_timer=F, call_flash=F,
-                            stand_timer=F, stand_target=I, crowd=F, crowd_neighbor=I)
+                            stand_timer=F, stand_target=I, crowd=F, crowd_neighbor=I, latched=B)
         self.vitals = Columns(health=F, stamina=F, food=F, foraging=B, bold=B, tired=B, hurt_flash=F,
                               boldness_timer=F, reproduction_timer=F, corpse_timer=F)
         self.env = None  # Environment, set by the world
@@ -229,11 +229,13 @@ class CreatureStore:
         m.banned_plant[i] = m.banned_creature[i] = -1
         m.alarm_timer[i] = m.alarm_heading[i] = m.call_timer[i] = m.call_flash[i] = 0.0
         m.stand_timer[i], m.stand_target[i] = 0.0, -1
+        m.latched[i] = False
         m.crowd[i], m.crowd_neighbor[i] = 0.0, -1
         v.health[i] = self.p("max_health", i)
         v.stamina[i] = self.p("max_stamina", i) * cfg["birth_stamina_ratio"]
         v.food[i] = cfg["birth_food"] if food is None else food
-        v.foraging[i], v.bold[i], v.tired[i], v.hurt_flash[i] = True, False, False, 0.0
+        v.foraging[i] = v.food[i] < self.p("max_food", i) * self.p("hungry_ratio", i)
+        v.bold[i], v.tired[i], v.hurt_flash[i] = False, False, 0.0
         v.boldness_timer[i] = v.corpse_timer[i] = 0.0
         v.reproduction_timer[i] = self.p("reproduction_interval", i)
         return i

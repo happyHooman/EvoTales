@@ -27,7 +27,7 @@ LABELS = {
     "min_edible_level": "Min edible growth stage",
     "walk_speed": "Walk speed (px/s)",
     "vision_range": "Vision range (px)",
-    "turn_rate": "Turn rate (rad/s)",
+    "turn_rate": "Turn rate at walking speed (rad/s)",
     "avoid_horizon": "Avoid look-ahead (s)",
     "avoid_margin": "Avoid margin (px)",
     "birth_stamina_ratio": "Birth stamina (fraction)",
@@ -61,6 +61,7 @@ LABELS = {
     "visibility": "Visibility (how far others spot it)",
     "night_vision": "Night vision (fraction kept)",
     "winter_hunger": "Extra winter hunger",
+    "sim_speed": "Simulation speed (x real time)",
     "day_length": "Day length (s)",
     "year_length": "Year length (s, 4 seasons)",
     "season_strength": "Season strength",
@@ -132,7 +133,7 @@ STEPS = {
     "nutrition": 5, "corpse_duration": 1.0, "mutation_rate": 0.01, "founder_variation": 0.01,
     "reintroduce_after": 10.0,
     "night_vision": 0.05, "winter_hunger": 0.05, "visibility": 0.05, "winter_wither": 0.01, "regrow_time": 1.0,
-    "day_length": 10.0, "year_length": 60.0, "season_strength": 0.05, "night_darkness": 0.05, "start_time": 10.0,
+    "sim_speed": 0.05, "day_length": 10.0, "year_length": 60.0, "season_strength": 0.05, "night_darkness": 0.05, "start_time": 10.0,
     "attack": 1, "rival_bite": 0.05, "personal_space": 2, "crowd_limit": 1, "crowd_damage": 0.05,
     "aggression": 0.05, "attack_cooldown": 0.1,
     "herd_radius": 5, "herd_bonus": 0.05, "crowd_penalty": 0.05, "herd_cohesion": 0.05,
@@ -144,13 +145,13 @@ PLANT_STEPS = {"initial_count": 10}
 NUMBER_LOCALE = QLocale.c()
 NUMBER_LOCALE.setNumberOptions(QLocale.NumberOption.OmitGroupSeparator)
 MINIMUMS = {"temperature_shift": -1.0, "moisture_shift": -1.0, "width_tiles": 40, "height_tiles": 30,
-            "tile_size": 8, "terrain_scale": 5, "climate_scale": 5, "day_length": 10.0, "year_length": 60.0, "run_speed_multiplier": 1.05, "run_stamina_multiplier": 1.0, "boldness_interval": 0.1,
+            "tile_size": 8, "terrain_scale": 5, "climate_scale": 5, "day_length": 10.0, "year_length": 60.0, "sim_speed": 0.05, "run_speed_multiplier": 1.05, "run_stamina_multiplier": 1.0, "boldness_interval": 0.1,
             "max_health": 5, "max_stamina": 5, "max_food": 5, "digest_efficiency": 0.05,
             "min_edible_level": 1}
 MAXIMUMS = {"aggression": 1.0, "rival_bite": 1.0, "water_level": 0.9, "beach_width": 0.3, "temperature_shift": 1.0, "moisture_shift": 1.0,
             "width_tiles": 1000, "height_tiles": 1000, "tile_size": 64, "seed": 999999,
             "min_edible_level": 4, "hunger_boldness": 1.0, "herd_cohesion": 1.0, "night_vision": 1.0,
-            "season_strength": 0.95, "night_darkness": 0.95}
+            "season_strength": 0.95, "night_darkness": 0.95, "sim_speed": 4.0}
 
 
 MAP_STEPS = {"seed": 1, "width_tiles": 10, "height_tiles": 10, "tile_size": 1, "terrain_scale": 5,

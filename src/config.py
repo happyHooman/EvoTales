@@ -20,14 +20,14 @@ CAMERA_SETTINGS = {
 
 # Plant configuration
 PLANT_CONFIG = {
-    "initial_count": 200,
-    "min_spacing": 30,
+    "initial_count": 1600,  # plants placed at the start (fewer if the map has no room)
+    "min_spacing": 55,
     "bounds_padding": 20,
     "seed_min_distance": 50,
     "seed_range": 500,
     "max_growth_level": 4,
-    "max_growth_timer": 10,
-    "reproduction_delay": 20,
+    "max_growth_timer": 12,
+    "reproduction_delay": 30,
     "growth_textures": [
         "plant_stage_1",
         "plant_stage_2",
@@ -41,7 +41,7 @@ PLANT_CONFIG = {
     },
     "provided_energy": [10, 20, 30, 50],
     "min_edible_level": 2,  # grazing resets a plant to stage 1; seedlings can't be eaten
-    "regrow_time": 10.0,    # seconds after grazing before a plant can be eaten again (any stage)
+    "regrow_time": 88.0,    # seconds after grazing before a plant can be eaten again (any stage)
     "winter_wither": 0.08,  # chance per second (scaled by how cold it is) to drop a growth stage
 }
 
@@ -50,8 +50,8 @@ PLANT_CONFIG = {
 MAP_CONFIG = {
     "source": "generated",
     "seed": 7,
-    "width_tiles": 200,
-    "height_tiles": 150,
+    "width_tiles": 280,
+    "height_tiles": 210,
     "tile_size": 16,             # pixels per tile
     "terrain_scale": 40,         # tiles per hill/lake feature (bigger = broader)
     "climate_scale": 70,         # tiles per climate zone
@@ -100,10 +100,11 @@ SPECIES_BIOME_CONFIG = {
 
 # Day/night and seasons
 ENVIRONMENT_CONFIG = {
+    "sim_speed": 1.0,         # simulated seconds per real second: slows (or speeds up) everything alike
     "day_length": 120.0,      # seconds per full day
     "year_length": 1440.0,    # seconds per year (four seasons)
     "start_time": 40.0,       # morning of day 1, early spring
-    "season_strength": 0.7,   # plant growth swings this much above/below normal (and winter cold)
+    "season_strength": 0.3,   # plant growth swings this much above/below normal (and winter cold)
     "night_darkness": 0.55,   # how dark the screen gets at midnight
 }
 
@@ -126,10 +127,10 @@ CREATURE_DEFAULTS = {
     "bounds_padding": 40,
     # Movement
     "walk_speed": 30,              # pixels per second
-    "run_speed_multiplier": 1.5,   # running is 50% faster...
-    "run_stamina_multiplier": 2.0,  # ...but costs twice the walking stamina
+    "run_speed_multiplier": 2.2,   # running is more than twice as fast...
+    "run_stamina_multiplier": 6.0,  # ...and costs six times the walking stamina
     "relax_speed_ratio": 0.15,     # relaxing speed as a fraction of walk_speed
-    "turn_rate": 3.0,              # radians per second (smooth turning)
+    "turn_rate": 3.0,              # radians per second at walking speed: faster when slower, slower when running
     "wander_turn_interval": 4.0,   # seconds between random heading changes when roaming
     "wall_probe_distance": 28,     # how far ahead to look for water/walls
     "avoid_horizon": 1.5,          # seconds of look-ahead for other creatures' paths (0 = off)
@@ -140,7 +141,7 @@ CREATURE_DEFAULTS = {
     "think_interval": 0.2,         # seconds between decisions (steering runs every frame)
     # Bars
     "max_health": 100,
-    "max_stamina": 100,
+    "max_stamina": 60,             # short bursts: a sprint lasts ~20 s, a rest refills it in ~20 s
     "max_food": 150,
     "birth_food": 50,              # born as adults with a little food to go find more
     "birth_stamina_ratio": 0.6,
@@ -149,7 +150,7 @@ CREATURE_DEFAULTS = {
     "walk_stamina_cost": 1.0,      # while walking; running costs run_stamina_multiplier x more
     # Food / digestion
     "food_drain": 0.3,             # being alive slowly empties the food bar
-    "digest_rate": 2.0,            # food per second turned into stamina (while stamina isn't full)
+    "digest_rate": 3.0,            # food per second turned into stamina (while stamina isn't full): fast recovery at rest, but less than running costs
     "digest_efficiency": 1.0,      # stamina gained per unit of food
     "starve_ratio": 0.1,           # below this fraction of max_food: starving
     "starve_damage": 1.0,          # health lost per second while starving
@@ -214,15 +215,15 @@ CREATURE_DEFAULTS = {
     "diet": [],
     "nutrition": 60,               # food a predator gains from eating this creature
     "corpse_duration": 20.0,       # seconds a dead body stays around and can still be eaten
-    "reintroduce_after": 60.0,     # an extinct species gets new founders after this many s (0 = never)
+    "reintroduce_after": 0.0,      # an extinct species gets new founders after this many s (0 = never)
 }
 
 # Herbivores: slow but enduring
 HERBIVORE_CONFIG = {
-    "initial_count": 15,
-    "max_population": 60,
-    "walk_speed": 30,              # runs at 45
-    "max_stamina": 120,
+    "initial_count": 120,
+    "max_population": 3000,        # safety net against lag only
+    "walk_speed": 30,              # runs at 66
+    "max_stamina": 70,
     "attack": 4,
     "herd_bonus": 0.6,
     "call_range": 120,
@@ -233,20 +234,20 @@ HERBIVORE_CONFIG = {
 
 # Carnivores: fast sprinters with a small stamina pool, so long chases fail
 CARNIVORE_CONFIG = {
-    "initial_count": 4,
-    "max_population": 12,
-    "walk_speed": 44,              # runs at 66, faster than smarties and herbivores
+    "initial_count": 12,
+    "max_population": 300,         # safety net against lag only
+    "walk_speed": 44,              # runs at 97, faster than smarties and herbivores
     "turn_rate": 3.5,
     "vision_range": 260,
     "max_health": 140,
-    "max_stamina": 24,
-    "run_stamina_multiplier": 3.0,  # sprinting is expensive for them
+    "max_stamina": 30,
+    "run_stamina_multiplier": 6.0,  # short bursts
     "sprint_range": 160,           # stalk, then sprint
     "max_food": 220,
     "birth_food": 80,
     "alive_stamina_cost": 0.4,
     "walk_stamina_cost": 0.8,
-    "digest_rate": 2.0,            # must beat walking cost, or hunters tire out just patrolling
+    "digest_rate": 3.0,            # must beat walking cost, or hunters tire out just patrolling
     "food_drain": 0.3,
     "reproduction_interval": 40.0,
     "reproduction_food_threshold": 180,
@@ -263,12 +264,12 @@ CARNIVORE_CONFIG = {
 # Smarties are the omnivores: plants and herbivores, hunted by carnivores.
 # They are the only species that may get a brain beyond instinct.
 SMARTIE_CONFIG = {
-    "initial_count": 6,
-    "max_population": 25,
-    "walk_speed": 36,              # runs at 54, faster than herbivores
+    "initial_count": 30,
+    "max_population": 600,         # safety net against lag only
+    "walk_speed": 36,              # runs at 79, faster than herbivores
     "turn_rate": 2.5,
     "vision_range": 260,
-    "max_stamina": 90,
+    "max_stamina": 60,
     "sprint_range": 140,
     "max_food": 180,
     "birth_food": 60,

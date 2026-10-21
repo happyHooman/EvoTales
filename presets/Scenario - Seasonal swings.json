@@ -1,31 +1,81 @@
 {
   "map": {
-    "seed": 902079
+    "seed": 902079,
+    "width_tiles": 200,
+    "height_tiles": 150
   },
   "world": {
     "season_strength": 0.61
   },
   "plants": {
+    "initial_count": 200,
+    "min_spacing": 30,
+    "max_growth_timer": 10,
     "reproduction_delay": 29.46,
     "regrow_time": 15.17
   },
   "herbivores": {
+    "initial_count": 15,
     "max_population": 94,
+    "vision_range": 200,
+    "alive_stamina_cost": 0.4,
+    "walk_stamina_cost": 1.0,
+    "food_drain": 0.3,
     "reproduction_interval": 15.89,
+    "reproduction_food_threshold": 120,
     "attack": 6.9,
     "crowd_limit": 5,
-    "herd_cohesion": 0.31
+    "herd_bonus": 0.6,
+    "herd_cohesion": 0.31,
+    "nutrition": 80,
+    "reintroduce_after": 60.0
   },
   "smarties": {
+    "initial_count": 6,
     "max_population": 101,
+    "alive_stamina_cost": 0.4,
+    "walk_stamina_cost": 1.0,
+    "food_drain": 0.35,
+    "digest_rate": 2.0,
     "reproduction_interval": 49.5,
-    "attack": 19.96
+    "reproduction_food_threshold": 145,
+    "visibility": 1.0,
+    "attack": 19.96,
+    "personal_space": 30,
+    "crowd_limit": 3,
+    "crowd_damage": 0.3,
+    "aggression": 0.3,
+    "crowd_penalty": 0.3,
+    "herd_cohesion": 0.2,
+    "dominance": 1.3,
+    "reintroduce_after": 60.0
   },
   "carnivores": {
+    "initial_count": 4,
     "max_population": 59,
+    "run_stamina_multiplier": 3.0,
+    "vision_range": 260,
+    "max_health": 140,
     "max_stamina": 25.45,
+    "max_food": 220,
+    "alive_stamina_cost": 0.4,
+    "walk_stamina_cost": 0.8,
+    "food_drain": 0.3,
+    "digest_rate": 2.0,
+    "hungry_ratio": 0.6,
     "sprint_range": 127.26,
     "reproduction_interval": 59.67,
-    "attack": 42.58
+    "reproduction_food_threshold": 180,
+    "reproduction_health_ratio": 0.9,
+    "attack": 42.58,
+    "personal_space": 30,
+    "crowd_damage": 0.3,
+    "aggression": 0.3,
+    "crowd_penalty": 0.4,
+    "reintroduce_after": 60.0
+  },
+  "species_biomes": {
+    "herbivores.forest.food_drain": 1.0,
+    "smarties.grassland.food_drain": 1.0
   }
 }

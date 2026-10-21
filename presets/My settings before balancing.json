@@ -1,0 +1,78 @@
+{
+  "map": {
+    "width_tiles": 200,
+    "height_tiles": 150
+  },
+  "world": {
+    "season_strength": 0.7
+  },
+  "plants": {
+    "initial_count": 200,
+    "min_spacing": 30,
+    "max_growth_timer": 10,
+    "reproduction_delay": 20,
+    "min_edible_level": 1,
+    "regrow_time": 10.0
+  },
+  "herbivores": {
+    "initial_count": 15,
+    "max_population": 6000,
+    "vision_range": 200,
+    "alive_stamina_cost": 0.4,
+    "walk_stamina_cost": 1.0,
+    "food_drain": 0.3,
+    "reproduction_interval": 15.0,
+    "reproduction_food_threshold": 120,
+    "attack": 4,
+    "herd_bonus": 0.6,
+    "nutrition": 80,
+    "reintroduce_after": 60.0
+  },
+  "smarties": {
+    "initial_count": 6,
+    "max_population": 2500,
+    "avoid_margin": 1,
+    "alive_stamina_cost": 0.4,
+    "walk_stamina_cost": 1.0,
+    "food_drain": 0.35,
+    "digest_rate": 2.0,
+    "relaxed_ratio": 0.7,
+    "reproduction_interval": 35.0,
+    "reproduction_food_threshold": 145,
+    "visibility": 1.0,
+    "attack": 15,
+    "personal_space": 30,
+    "crowd_limit": 3,
+    "crowd_damage": 0.3,
+    "aggression": 0.3,
+    "crowd_penalty": 0.3,
+    "herd_cohesion": 0.2,
+    "dominance": 1.3,
+    "reintroduce_after": 60.0
+  },
+  "carnivores": {
+    "initial_count": 4,
+    "max_population": 60,
+    "run_stamina_multiplier": 3.0,
+    "vision_range": 260,
+    "max_health": 140,
+    "max_food": 220,
+    "alive_stamina_cost": 0.4,
+    "walk_stamina_cost": 0.8,
+    "food_drain": 0.3,
+    "digest_rate": 2.0,
+    "hungry_ratio": 0.6,
+    "reproduction_interval": 40.0,
+    "reproduction_food_threshold": 180,
+    "reproduction_health_ratio": 0.9,
+    "personal_space": 30,
+    "crowd_damage": 0.3,
+    "aggression": 0.3,
+    "crowd_penalty": 0.4,
+    "reintroduce_after": 60.0
+  },
+  "species_biomes": {
+    "herbivores.forest.food_drain": 1.0,
+    "smarties.grassland.food_drain": 1.0
+  }
+}

@@ -92,13 +92,19 @@ class Plant(Entity):
 
     @staticmethod
     def spawn_initial(world):
+        """Place initial_count plants at random spots that respect the spacing (fewer
+        if the map runs out of room)."""
         padding = PLANT_CONFIG["bounds_padding"]
         map_w, map_h = world.map_size
-        for _ in range(PLANT_CONFIG["initial_count"]):
+        wanted = int(PLANT_CONFIG["initial_count"])
+        placed = 0
+        for _ in range(wanted * 10):
+            if placed >= wanted:
+                break
             growth_level = random.randint(1, PLANT_CONFIG["max_growth_level"])
             x = random.uniform(padding, map_w - padding)
             y = random.uniform(padding, map_h - padding)
-            Plant._try_spawn(world, x, y, growth_level=growth_level)
+            placed += Plant._try_spawn(world, x, y, growth_level=growth_level)
 
     def __init__(self, x, y, world, growth_level=1):
         if growth_level < 1 or growth_level > PLANT_CONFIG["max_growth_level"]:

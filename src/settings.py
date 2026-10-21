@@ -33,7 +33,7 @@ CREATURE_SECTIONS = [name for name in SECTIONS if name not in NON_CREATURE_SECTI
 MAP_KEYS = ["seed", "width_tiles", "height_tiles", "tile_size", "terrain_scale", "climate_scale",
             "water_level", "beach_width", "temperature_shift", "moisture_shift", "latitude_strength"]
 BIOME_KEYS = list(BIOME_CONFIG)
-WORLD_KEYS = ["day_length", "year_length", "season_strength", "night_darkness", "start_time"]
+WORLD_KEYS = ["sim_speed", "day_length", "year_length", "season_strength", "night_darkness", "start_time"]
 
 PLANT_KEYS = [
     "initial_count", "min_spacing", "seed_min_distance", "seed_range",

@@ -18,13 +18,16 @@ overrides fear):
    within sprint_range. A bold forager ignores predators
    that aren't chasing it and goes for food.
 2. Reproduce when the interval, food and health allow it.
-3. Foraging (hungry until full): keep the current target while it's in sight,
-   else go for the closest food. Run at moving prey, walk to plants, corpses
-   and still prey. No food in sight: roam.
+3. Foraging (hungry until full): meat before plants, and corpses (easy food)
+   before live prey; within a kind, the closest. A starving creature takes
+   whatever food is closest. It keeps its current target while it's in sight
+   unless a better kind of food shows up, and never lets go of prey it has
+   already bitten (until the prey is dead). Run at moving prey, walk to plants,
+   corpses and still prey. No food in sight: roam.
 4. Tired (until rested), well fed or hurt: relax (drift slowly; heals like sleep).
 Every creature has an attack value (attack, weakened by low health and stamina).
 Hunters bite living prey (one bite every attack_cooldown s) rather than
-swallowing it; prey bites back, harder with its herd around it (when caught
+swallowing it, staying on it (facing it, matching its pace) between bites; prey bites back, harder with its herd around it (when caught
 exhausted or with its herd near, it stops and turns to fight), and hunters
 prefer prey that isn't in a crowd. Roaming creatures drift toward their herd.
 Prey running from a predator give alarm calls; peers that hear one flee the
@@ -56,8 +59,12 @@ DETOUR_TIME = 0.8
 CALL_COOLDOWN = 2.0  # seconds between one creature's alarm calls
 CALL_FLASH = 0.6     # seconds the call ripple is shown
 STAND_TIME = 1.2     # seconds caught prey stands and fights before trying to run again
-# Thinkers are batched by map region of this size (at least their vision range)
+# Thinkers are batched by map region: at least this big (and at least their vision
+# range), and bigger when the map is sparse, so each batch holds about
+# REGION_CREATURES creatures (numpy pays per call, so fewer, fuller batches are faster)
 REGION_SIZE = 800.0
+REGION_CREATURES = 200
+CORPSE_FIRST = 1e12  # added to live prey's distance so any corpse in sight ranks first
 
 
 class BehaviourSystem:
@@ -116,14 +123,15 @@ class BehaviourSystem:
         margin = float(max(P["vision_range"].max() * s.gene_max("vision_range"),
                            (P["avoid_horizon"] * (P["walk_speed"] * P["run_speed_multiplier"]
                                                   * s.gene_max("walk_speed") + 70)).max() + 40))
-        region = max(REGION_SIZE, margin)
+        used = np.nonzero(s.used[:n])[0]
+        map_w, map_h = self.world.map_size
+        region = max(REGION_SIZE, margin, math.sqrt(map_w * map_h * REGION_CREATURES / max(len(used), 1)))
         bx, by = s.body.x, s.body.y
         rx = np.floor(bx[rows] / region).astype(np.int64)
         ry = np.floor(by[rows] / region).astype(np.int64)
         keys = rx * 100003 + ry
         order = np.argsort(keys, kind="stable")
         splits = np.nonzero(np.diff(keys[order]))[0] + 1
-        used = np.nonzero(s.used[:n])[0]
         ux, uy = bx[used], by[used]
         px, py, _, _ = self.world.plant_arrays()
         for group in np.split(order, splits):
@@ -171,7 +179,10 @@ class BehaviourSystem:
             crowd = 1.0 + P["crowd_penalty"][rs[hr]][:, None] * (s.alive[cols] * self.herd_peers(cols))[None, :]
             banned = cols[None, :] == np.where(m.yield_timer[rows[hr]] > 0, m.banned_creature[rows[hr]], -1)[:, None]
             cfood_d2 = np.where(is_cfood[hr] & ~banned, d2[hr] * crowd, np.inf)
-            bc = np.argmin(cfood_d2, axis=1)
+            # Corpses are easy food: any corpse in sight comes before any live prey
+            live = s.alive[cols][None, :] & np.isfinite(cfood_d2)
+            rank = np.where(live, cfood_d2 + CORPSE_FIRST, cfood_d2)
+            bc = np.argmin(rank, axis=1)
             best_c_d2[hr], best_c[hr] = cfood_d2[np.arange(len(hr)), bc], cols[bc]
 
         # --- plants in sight ---
@@ -213,11 +224,27 @@ class BehaviourSystem:
             tp = cur_p[kp]
             keep_p[kp] = edible[tp] & ((px[tp] - x[kp]) ** 2 + (py[tp] - y[kp]) ** 2 <= vision2[kp, 0])
 
-        has_food = np.isfinite(best_c_d2) | np.isfinite(best_p_d2) | keep_c | keep_p
-        choose_c = np.where(keep_c, True, np.where(keep_p, False, best_c_d2 <= best_p_d2))
-        target_c = np.where(keep_c, cur_c, np.where(choose_c & np.isfinite(best_c_d2), best_c, -1))
-        target_p = np.where(keep_p, cur_p, np.where(~choose_c & np.isfinite(best_p_d2), best_p, -1))
-        target_c = np.where(target_p >= 0, -1, target_c)
+        # Kinds of food, best first: corpse, live prey, plant. Meat beats plants unless
+        # the creature is starving: then the closest food of any kind will do
+        starving = v.food[rows] <= P["starve_ratio"][rs] * s.p("max_food", rows)
+        best_c_ok = np.isfinite(best_c_d2)
+        new_kind = np.where(best_c_ok, np.where(s.alive[np.maximum(best_c, 0)], 1, 0), 3)
+        new_kind = np.where(np.isfinite(best_p_d2) & (~best_c_ok | (starving & (best_p_d2 < best_c_d2))),
+                            2, new_kind)
+        cur_kind = np.where(keep_c, np.where(s.alive[np.maximum(cur_c, 0)], 1, 0), np.where(keep_p, 2, 3))
+        # Keep the current target unless a better kind of food is in sight (starving: keep it)
+        keep = (keep_c | keep_p) & (starving | (cur_kind <= new_kind))
+        # Prey it has already bitten is never let go while it lives
+        cc = np.maximum(cur_c, 0)
+        gap2 = (s.body.x[cc] - x) ** 2 + (s.body.y[cc] - y) ** 2
+        latched = (m.latched[rows] & (cur_c >= 0) & s.used[cc] & s.alive[cc]
+                   & (gap2 <= vision2[:, 0]))  # ...unless it got clean away
+        keep |= latched
+        keep_c, keep_p = keep & (keep_c | latched), keep & keep_p & ~latched
+        has_food = (new_kind < 3) | keep_c | keep_p
+        target_c = np.where(keep_c, cur_c, np.where(~keep & (new_kind < 2), best_c, -1))
+        target_p = np.where(keep_p, cur_p, np.where(~keep & (new_kind == 2), best_p, -1))
+        m.latched[rows] &= latched & (target_c == cur_c)
 
         # --- instinct ---
         food, foraging = v.food[rows], v.foraging[rows]
@@ -240,7 +267,7 @@ class BehaviourSystem:
         alarmed = (m.alarm_timer[rows] > 0) & ~has_threat
         flee = (has_threat | alarmed) & ~hunger_wins
         repro = ~flee & can_repro
-        eat = ~flee & ~repro & ~tired & foraging & has_food
+        eat = ~flee & ~repro & ((~tired & foraging & has_food) | latched)
         relax = ~flee & ~repro & ~eat & relaxed
         action = np.full(len(rows), WANDER)
         action[relax] = RELAX
@@ -443,6 +470,11 @@ class BehaviourSystem:
             r = int(e[j])
             t = int(m.target_creature[r])
             if t >= 0 and s.alive[t] and s.p("attack", r) > 0:
+                # Latch on: keep facing the prey and match its pace instead of running past it;
+                # from the first bite on, it won't switch to other food
+                m.latched[r] = True
+                m.goal[r] = math.atan2(ddy[j], ddx[j])
+                self.store.command.speed[r] = min(self.store.command.speed[r], s.body.speed[t])
                 self._fight(r, t)
             else:
                 self._consume(r)
@@ -515,12 +547,21 @@ class BehaviourSystem:
         s, m = self.store, self.store.mind
         m.crowd[rows] = 0
         m.crowd_neighbor[rows] = -1
+        if not len(rows):
+            return
         space = s.p("personal_space", rows)
-        i, j, d = self.physics.pairs_within(rows, float(space.max()) if len(rows) else 0.0)
+        # Per species, so a wide personal space (territorial hunters) doesn't make every
+        # herd pair up across that distance
+        parts = []
+        for sp in np.unique(s.species[rows]):
+            local = np.nonzero(s.species[rows] == sp)[0]
+            li, lj, ld = self.physics.pairs_within(rows[local], float(space[local].max()))
+            parts.append((local[li], local[lj], ld))
+        i = np.concatenate([p[0] for p in parts])
+        j = np.concatenate([p[1] for p in parts])
+        d = np.concatenate([p[2] for p in parts])
         if not len(i):
             return
-        same = s.species[rows[i]] == s.species[rows[j]]
-        i, j, d = i[same], j[same], d[same]
         counts = np.zeros(len(rows))
         nearest = np.full(len(rows), np.inf)
         neighbor = np.full(len(rows), -1)
@@ -633,6 +674,7 @@ class BehaviourSystem:
         m.action[r] = WANDER
         m.target_creature[r] = m.target_plant[r] = -1
         m.running[r] = False
+        m.latched[r] = False
 
     def _give_birth(self, r):
         s = self.store

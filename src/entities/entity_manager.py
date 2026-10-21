@@ -124,7 +124,9 @@ class EntityManager():
         for _ in range(int(cfg["initial_count"])):
             pos = self.random_free_position(cfg["bounds_padding"])
             if pos is not None:
-                row = self.creatures.spawn(creature_type.layer_name, *pos)
+                # Founders arrive fed (between hungry and full), so they don't all strip the plants at once
+                food = cfg["max_food"] * random.uniform(cfg["hungry_ratio"], cfg["full_ratio"])
+                row = self.creatures.spawn(creature_type.layer_name, *pos, food=food)
                 # Stagger the first births so the founders don't all reproduce at once
                 self.creatures.store.vitals.reproduction_timer[row] *= random.uniform(0.3, 1.0)
 
