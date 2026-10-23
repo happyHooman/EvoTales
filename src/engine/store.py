@@ -27,6 +27,7 @@ PARAM_KEYS = [
     "food_drain", "digest_rate", "digest_efficiency", "starve_ratio", "starve_damage", "muscle_burn",
     "heal_rate", "heal_stamina_cost", "heal_food_cost",
     "hungry_ratio", "full_ratio", "relaxed_ratio", "rest_ratio", "rested_ratio", "eat_range",
+    "desperate_ratio",
     "sprint_range",
     "hunger_boldness", "boldness_interval",
     "reproduction_interval", "reproduction_food_threshold", "reproduction_health_ratio",

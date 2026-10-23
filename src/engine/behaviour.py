@@ -19,8 +19,8 @@ overrides fear):
    that aren't chasing it and goes for food.
 2. Reproduce when the interval, food and health allow it.
 3. Foraging (hungry until full): meat before plants, and corpses (easy food)
-   before live prey; within a kind, the closest. A starving creature takes
-   whatever food is closest. It keeps its current target while it's in sight
+   before live prey; within a kind, the closest. Below desperate_ratio of its
+   stomach (it hasn't eaten for a long time) it takes whatever food is closest. It keeps its current target while it's in sight
    unless a better kind of food shows up, and never lets go of prey it has
    already bitten (until the prey is dead). Run at moving prey, walk to plants,
    corpses and still prey. No food in sight: roam.
@@ -226,7 +226,7 @@ class BehaviourSystem:
 
         # Kinds of food, best first: corpse, live prey, plant. Meat beats plants unless
         # the creature is starving: then the closest food of any kind will do
-        starving = v.food[rows] <= P["starve_ratio"][rs] * s.p("max_food", rows)
+        starving = v.food[rows] <= s.p("desperate_ratio", rows) * s.p("max_food", rows)
         best_c_ok = np.isfinite(best_c_d2)
         new_kind = np.where(best_c_ok, np.where(s.alive[np.maximum(best_c, 0)], 1, 0), 3)
         new_kind = np.where(np.isfinite(best_p_d2) & (~best_c_ok | (starving & (best_p_d2 < best_c_d2))),

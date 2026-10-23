@@ -20,7 +20,7 @@ CAMERA_SETTINGS = {
 
 # Plant configuration
 PLANT_CONFIG = {
-    "initial_count": 1600,  # plants placed at the start (fewer if the map has no room)
+    "initial_count": 3200,  # plants placed at the start (fewer if the map has no room)
     "min_spacing": 55,
     "bounds_padding": 20,
     "seed_min_distance": 50,
@@ -41,7 +41,7 @@ PLANT_CONFIG = {
     },
     "provided_energy": [10, 20, 30, 50],
     "min_edible_level": 2,  # grazing resets a plant to stage 1; seedlings can't be eaten
-    "regrow_time": 88.0,    # seconds after grazing before a plant can be eaten again (any stage)
+    "regrow_time": 141,    # seconds after grazing before a plant can be eaten again (any stage)
     "winter_wither": 0.08,  # chance per second (scaled by how cold it is) to drop a growth stage
 }
 
@@ -50,8 +50,8 @@ PLANT_CONFIG = {
 MAP_CONFIG = {
     "source": "generated",
     "seed": 7,
-    "width_tiles": 280,
-    "height_tiles": 210,
+    "width_tiles": 400,
+    "height_tiles": 300,
     "tile_size": 16,             # pixels per tile
     "terrain_scale": 40,         # tiles per hill/lake feature (bigger = broader)
     "climate_scale": 70,         # tiles per climate zone
@@ -104,7 +104,7 @@ ENVIRONMENT_CONFIG = {
     "day_length": 120.0,      # seconds per full day
     "year_length": 1440.0,    # seconds per year (four seasons)
     "start_time": 40.0,       # morning of day 1, early spring
-    "season_strength": 0.3,   # plant growth swings this much above/below normal (and winter cold)
+    "season_strength": 0.0,   # plant growth swings this much above/below normal (and winter cold)
     "night_darkness": 0.55,   # how dark the screen gets at midnight
 }
 
@@ -160,6 +160,7 @@ CREATURE_DEFAULTS = {
     "heal_stamina_cost": 1.0,
     "heal_food_cost": 0.5,
     # Moods
+    "desperate_ratio": 0.1,        # below this fraction of max_food it eats whatever food is closest, not its favourite
     "hungry_ratio": 0.6,           # starts foraging below this fraction of max_food...
     "full_ratio": 0.95,            # ...and keeps foraging until this fraction
     "relaxed_ratio": 0.85,         # relaxes when food is above this (or when hurt / tired)
@@ -220,7 +221,7 @@ CREATURE_DEFAULTS = {
 
 # Herbivores: slow but enduring
 HERBIVORE_CONFIG = {
-    "initial_count": 120,
+    "initial_count": 596,
     "max_population": 3000,        # safety net against lag only
     "walk_speed": 30,              # runs at 66
     "max_stamina": 70,
@@ -229,16 +230,17 @@ HERBIVORE_CONFIG = {
     "call_range": 120,
     "herd_cohesion": 0.4,
     "diet": ["plants"],
-    "nutrition": 80,
+    "nutrition": 62,
+    "reproduction_interval": 40,
 }
 
 # Carnivores: fast sprinters with a small stamina pool, so long chases fail
 CARNIVORE_CONFIG = {
-    "initial_count": 12,
-    "max_population": 300,         # safety net against lag only
-    "walk_speed": 44,              # runs at 97, faster than smarties and herbivores
+    "initial_count": 24,
+    "max_population": 600,         # safety net against lag only
+    "walk_speed": 38,              # runs at 84, faster than smarties (73) and herbivores (66)
     "turn_rate": 3.5,
-    "vision_range": 260,
+    "vision_range": 200,
     "max_health": 140,
     "max_stamina": 30,
     "run_stamina_multiplier": 6.0,  # short bursts
@@ -248,9 +250,9 @@ CARNIVORE_CONFIG = {
     "alive_stamina_cost": 0.4,
     "walk_stamina_cost": 0.8,
     "digest_rate": 3.0,            # must beat walking cost, or hunters tire out just patrolling
-    "food_drain": 0.3,
-    "reproduction_interval": 40.0,
-    "reproduction_food_threshold": 180,
+    "food_drain": 0.2,
+    "reproduction_interval": 193,
+    "reproduction_food_threshold": 171,
     "reproduction_food_cost": 80,
     "attack": 45,
     "crowd_limit": 1,              # loners
@@ -259,30 +261,39 @@ CARNIVORE_CONFIG = {
     "crowd_penalty": 0.4,
     "diet": ["herbivores", "smarties"],
     "nutrition": 90,
+    "crowd_damage": 0.57,
+    "personal_space": 49,
 }
 
 # Smarties are the omnivores: plants and herbivores, hunted by carnivores.
 # They are the only species that may get a brain beyond instinct.
 SMARTIE_CONFIG = {
-    "initial_count": 30,
-    "max_population": 600,         # safety net against lag only
-    "walk_speed": 36,              # runs at 79, faster than herbivores
+    "initial_count": 46,
+    "max_population": 1500,        # safety net against lag only
+    "walk_speed": 36,              # runs at 73, faster than herbivores
     "turn_rate": 2.5,
-    "vision_range": 260,
+    "vision_range": 280,
     "max_stamina": 60,
     "sprint_range": 140,
     "max_food": 180,
     "birth_food": 60,
-    "food_drain": 0.35,
-    "reproduction_interval": 35.0,
+    "food_drain": 0.36,
+    "reproduction_interval": 143,
     "reproduction_food_threshold": 145,
     "reproduction_food_cost": 65,
-    "attack": 15,
+    "attack": 40,
     "crowd_limit": 3,
     "dominance": 1.3,
     "call_range": 140,
     "crowd_penalty": 0.3,
     "herd_cohesion": 0.2,
     "diet": ["plants", "herbivores"],  # herbivores (nutrition 80) beat any plant (max 50)
-    "nutrition": 100,
+    "nutrition": 75,
+    "crowd_damage": 0.43,
+    "desperate_ratio": 0.3,
+    "max_health": 100,
+    "personal_space": 56,
+    "rival_bite": 0.25,
+    "run_speed_multiplier": 2.03,
+    "visibility": 1.25,
 }

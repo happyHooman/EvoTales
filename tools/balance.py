@@ -52,7 +52,7 @@ for _var in ("VECLIB_MAXIMUM_THREADS", "OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS"
 SPECIES = ("herbivores", "smarties", "carnivores")
 FLOOR = 5
 WARMUP_MIN = 6.0
-MAX_TOTAL = 1500        # more than this at once is too crowded (and slow) to be a good setting
+MAX_TOTAL = 3000        # more than this at once is too crowded (and slow) to be a good setting
 EVAL_CAP = 2000          # caps during evaluation: safety only
 WAVE_RATIO = 1.5
 MIN_LOW_RATIO = 0.15
